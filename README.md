@@ -11,7 +11,7 @@ The implementation follows the supplied project architecture and the 34-domain A
 - Five sequential, independently configured OpenAI Chat Completions-compatible LLM slots with per-engine key, base URL, model ID, timeout, retry count, and retry delay. Provider credentials are read only by the Edge Function.
 - Strict action-plan schema validation, sequential fallback, bounded retries, safe usage/error logs, and per-user Row Level Security for engine logs.
 - Per-action recommendation plans with executable action types, coordinator/agent/sub-agent/skill attribution, and complete ordered steps added when needed for the requested result.
-- Android AccessibilityService actions for app launch, Back/Home/Recents, accessible-node tap/type, scroll, swipe, clipboard, wait, and visible-text verification. The service is disabled until the user enables it in Android Settings.
+- Android AccessibilityService actions for app launch, HTTPS browser URL launch, Back/Home/Recents, accessible-node tap/type, scroll, swipe, clipboard, wait, and visible-text verification. The service is disabled until the user enables it in Android Settings.
 - A task plan preview before execution, per-action approval prompts for sensitive operations, user-only authentication/security checkpoints, and a stop control. Failed actions stop the workflow; side effects are not blindly retried.
 - Android-only workflow memory: successful, verified routines are versioned, scored, scoped to the starting app, and reused locally when confidence and context match.
 - Responsive Web App with browser speech recognition/synthesis where supported, Supabase sign-in, authenticated task planning, safe plan display, local drafts, and the supplied 34-domain reference catalog.
@@ -123,13 +123,14 @@ Last checked locally in this workspace on 2026-10-19:
 | --- | --- |
 | `npm ci` | Passed; no runtime/dev packages to install. |
 | `npm run lint` | Passed. |
-| `npm test` | Passed: 5 Web tests. |
+| `npm test` | Passed: 9 Web tests. |
 | `npm run build` | Passed; generated `dist/`. |
 | `gradle :core:test` | Passed; core Kotlin tests compiled and ran. |
 | `deno check supabase/functions/agent-execute/index.ts` | Passed. |
-| `deno test supabase/functions/agent-execute/plan.test.ts` | Passed: 4 backend schema/safety tests. |
+| `deno test supabase/functions/agent-execute/plan.test.ts` | Passed: 6 backend schema/safety tests. |
 | `deno fmt --check supabase/functions/agent-execute/` | Passed. |
 | `gradle :app:assembleDebug` | Blocked before Android compilation: no Android SDK configured (`ANDROID_HOME`/`local.properties` missing). |
-| Supabase migration/deployment, real provider calls, GitHub Actions run, device Accessibility, STT/TTS | Not run; project credentials, hosted services, workflow run, and device approval are not available here. |
+| Latest GitHub Actions run (`6ac01c3`) | Web and Edge Function jobs passed; Android failed in `setup-android` before Gradle because the action default requested the removed `tools` SDK package. The workflow now specifies Android 36 SDK packages; the fix needs a new hosted run. |
+| Supabase migration/deployment, real provider calls, device Accessibility, STT/TTS | Not run; project credentials, hosted services, and device approval are not available here. |
 
 See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md), [List.md](List.md), [SuperiOA™_Project_Documentation_(1).md](SuperiOA%E2%84%A2_Project_Documentation_(1).md), and [superioa_solution.md](superioa_solution.md) for the source requirements and status mapping.

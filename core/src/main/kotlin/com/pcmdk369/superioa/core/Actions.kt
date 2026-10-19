@@ -2,6 +2,7 @@ package com.pcmdk369.superioa.core
 
 enum class ActionType {
     OPEN_APP,
+    OPEN_URL,
     BACK,
     HOME,
     RECENTS,

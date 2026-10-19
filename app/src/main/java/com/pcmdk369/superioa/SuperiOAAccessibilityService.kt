@@ -2,9 +2,11 @@ package com.pcmdk369.superioa
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Path
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -96,6 +98,7 @@ class SuperiOAAccessibilityService : AccessibilityService() {
 
         return when (action.type) {
             ActionType.OPEN_APP -> openApp(action.target.orEmpty())
+            ActionType.OPEN_URL -> openUrl(action.target.orEmpty())
             ActionType.BACK -> globalAction(GLOBAL_ACTION_BACK)
             ActionType.HOME -> globalAction(GLOBAL_ACTION_HOME)
             ActionType.RECENTS -> globalAction(GLOBAL_ACTION_RECENTS)
@@ -131,6 +134,29 @@ class SuperiOAAccessibilityService : AccessibilityService() {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         startActivity(intent)
         return ActionExecution.Success
+    }
+
+    private fun openUrl(address: String): ActionExecution {
+        if (!address.matches(Regex("""https://[^/?#]+(?:[/?#]|$)""", RegexOption.IGNORE_CASE))) {
+            return ActionExecution.Failed("Only valid HTTPS URLs without embedded credentials can be opened.")
+        }
+        val uri = Uri.parse(address)
+        if (!uri.scheme.equals("https", ignoreCase = true) || uri.host.isNullOrBlank() || uri.userInfo != null) {
+            return ActionExecution.Failed("Only valid HTTPS URLs without embedded credentials can be opened.")
+        }
+        val intent = Intent(Intent.ACTION_VIEW, uri)
+            .addCategory(Intent.CATEGORY_BROWSABLE)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        return try {
+            if (intent.resolveActivity(packageManager) == null) {
+                ActionExecution.Failed("No browser is available to open the requested URL.")
+            } else {
+                startActivity(intent)
+                ActionExecution.Success
+            }
+        } catch (_: ActivityNotFoundException) {
+            ActionExecution.Failed("No browser is available to open the requested URL.")
+        }
     }
 
     private fun globalAction(action: Int): ActionExecution =

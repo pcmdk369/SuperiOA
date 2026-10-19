@@ -40,6 +40,46 @@ Deno.test("accepts an action plan with verification", () => {
   }
 });
 
+Deno.test("accepts safe HTTPS URLs and rejects unsafe URLs", () => {
+  const plan = validatePlan({
+    ...validPlan,
+    actions: [
+      {
+        ...validPlan.actions[0],
+        action: "OPEN_URL",
+        target: "https://example.com",
+      },
+      validPlan.actions[1],
+    ],
+  });
+  if (plan.actions[0].action !== "OPEN_URL") {
+    throw new Error("The HTTPS URL action was not preserved.");
+  }
+
+  for (
+    const target of [
+      "http://example.com",
+      "javascript:alert(1)",
+      "https://user:pass@example.com",
+      "https:///missing-host",
+    ]
+  ) {
+    let rejected = false;
+    try {
+      validatePlan({
+        ...validPlan,
+        actions: [
+          { ...validPlan.actions[0], action: "OPEN_URL", target },
+          validPlan.actions[1],
+        ],
+      });
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error(`Unsafe URL was accepted: ${target}`);
+  }
+});
+
 Deno.test("rejects unsupported or unverified action plans", () => {
   for (
     const actions of [

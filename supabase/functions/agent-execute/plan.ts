@@ -27,6 +27,7 @@ export class PlanError extends Error {}
 
 const actionNames = new Set([
   "OPEN_APP",
+  "OPEN_URL",
   "BACK",
   "HOME",
   "RECENTS",
@@ -45,6 +46,7 @@ const actionNames = new Set([
 ]);
 const targetRequired = new Set([
   "OPEN_APP",
+  "OPEN_URL",
   "TAP",
   "TYPE",
   "SCROLL",
@@ -134,6 +136,23 @@ export function validatePlan(value: unknown): AgentPlan {
       (typeof action.target !== "string" || !action.target.trim())
     ) {
       throw new PlanError("missing_action_target");
+    }
+    if (action.action === "OPEN_URL") {
+      const target = String(action.target);
+      if (!/^https:\/\/[^/?#]+(?:[/?#]|$)/i.test(target)) {
+        throw new PlanError("invalid_web_url");
+      }
+      try {
+        const url = new URL(target);
+        if (
+          url.protocol !== "https:" || !url.hostname || url.username ||
+          url.password
+        ) {
+          throw new Error("invalid_url");
+        }
+      } catch {
+        throw new PlanError("invalid_web_url");
+      }
     }
     if (
       action.target !== undefined &&

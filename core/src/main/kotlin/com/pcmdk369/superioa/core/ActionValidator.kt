@@ -1,5 +1,7 @@
 package com.pcmdk369.superioa.core
 
+import java.net.URI
+
 object ActionValidator {
     private const val MAX_ACTIONS = 50
     private const val MAX_TARGET_LENGTH = 200
@@ -11,6 +13,7 @@ object ActionValidator {
 
     private val targetRequired = setOf(
         ActionType.OPEN_APP,
+        ActionType.OPEN_URL,
         ActionType.TAP,
         ActionType.TYPE,
         ActionType.SCROLL,
@@ -35,6 +38,9 @@ object ActionValidator {
             }
             if (candidate.target != null && candidate.target.length > MAX_TARGET_LENGTH) {
                 return PlanValidation.Invalid("Action ${index + 1} has a target that is too long.")
+            }
+            if (type == ActionType.OPEN_URL && !isSafeWebUrl(candidate.target.orEmpty())) {
+                return PlanValidation.Invalid("Action ${index + 1} requires a valid HTTPS URL without embedded credentials.")
             }
             if (type in textRequired && candidate.text.isNullOrBlank()) {
                 return PlanValidation.Invalid("Action ${index + 1} requires text.")
@@ -93,6 +99,14 @@ object ActionValidator {
 
         return PlanValidation.Valid(ActionPlan(validated))
     }
+
+    private fun isSafeWebUrl(value: String): Boolean = runCatching {
+        URI(value).let { uri ->
+            uri.scheme.equals("https", ignoreCase = true) &&
+                !uri.host.isNullOrBlank() &&
+                uri.rawUserInfo == null
+        }
+    }.getOrDefault(false)
 }
 
 object SafetyGate {

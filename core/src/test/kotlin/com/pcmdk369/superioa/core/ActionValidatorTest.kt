@@ -17,6 +17,23 @@ class ActionValidatorTest {
     }
 
     @Test
+    fun acceptsHttpsUrlAndRejectsUnsafeOrMalformedUrls() {
+        val accepted = ActionValidator.validate(
+            listOf(recommended(action = "OPEN_URL", target = "https://example.com/search?q=android")),
+        )
+        assertEquals(
+            ActionType.OPEN_URL,
+            assertIs<PlanValidation.Valid>(accepted).plan.actions.single().type,
+        )
+
+        for (url in listOf("http://example.com", "javascript:alert(1)", "https://user:pass@example.com", "https:///missing-host")) {
+            assertIs<PlanValidation.Invalid>(
+                ActionValidator.validate(listOf(recommended(action = "OPEN_URL", target = url))),
+            )
+        }
+    }
+
+    @Test
     fun rejectsUnknownActionAndMissingRequiredFields() {
         assertIs<PlanValidation.Invalid>(
             ActionValidator.validate(listOf(recommended(action = "RUN_SHELL"))),
