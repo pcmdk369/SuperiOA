@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Voice-first Android experience | Implemented | System speech recognition input and native Android TTS; device-specific behavior not verified. |
 | Voice-first Web experience | Implemented | Browser SpeechRecognition/SpeechSynthesis where supported; text remains available. |
-| Master Agent → Coordinator → Orchestrator → Sub-Agent / Pre-Sub-Agent → Skill plan | Implemented | Edge Function prompt/output carries the hierarchy and structured action plan. |
+| Master Agent → Coordinator → Orchestrator → Sub-Agent / Pre-Sub-Agent → Skill recommendations | Implemented | Every ordered step is a recommendation with its executable action type, explanation, agent, sub-agent, and skill; planner is instructed to add all required steps up to the validated 50-step bound. |
 | Five sequential LLM engines | Implemented, unconfigured | Independent endpoint/model/key/timeout/retry settings and bounded failover; only OpenAI-compatible Chat Completions adapters; no credentials/provider calls verified. |
 | Safe provider secrets | Implemented | Provider keys are read server-side only; clients send Supabase Auth tokens and public anon key. |
 | Action validation and local UI engine | Implemented, device-unverified | Core validator plus Accessibility actions for launch/navigation/tap/type/scroll/swipe/clipboard/wait/verify. Targets must be accessible. |

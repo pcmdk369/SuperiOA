@@ -69,6 +69,8 @@ object AgentBackend {
             val action = actions.getJSONObject(index)
             val actionName = action.get("action") as? String
                 ?: throw IllegalStateException("Action ${index + 1} has an invalid type.")
+            val recommendationType = action.get("recommendationType") as? String
+                ?: throw IllegalStateException("Action ${index + 1} is missing its recommendation type.")
             val target = action.getNullableString("target")
             val text = action.getNullableString("text")
             val timeoutValue = if (action.has("timeoutMs")) action.get("timeoutMs") else null
@@ -88,6 +90,11 @@ object AgentBackend {
                 timeoutMs = timeout,
                 requiresApproval = requiresApproval,
                 approvalReason = action.getNullableString("approvalReason"),
+                recommendationType = recommendationType,
+                recommendation = action.getNullableString("recommendation"),
+                agent = action.getNullableString("agent"),
+                subAgent = action.getNullableString("subAgent"),
+                skill = action.getNullableString("skill"),
             )
         }
         val validated = when (val result = ActionValidator.validate(proposed)) {
@@ -97,6 +104,7 @@ object AgentBackend {
         return AgentPlan(
             summary = json.requireString("summary"),
             domain = json.requireString("domain"),
+            agent = json.requireString("agent"),
             subAgent = json.requireString("subAgent"),
             preSubAgent = json.getNullableString("preSubAgent"),
             skill = json.requireString("skill"),

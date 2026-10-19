@@ -26,6 +26,11 @@ data class ProposedAction(
     val timeoutMs: Int? = null,
     val requiresApproval: Boolean = false,
     val approvalReason: String? = null,
+    val recommendationType: String? = null,
+    val recommendation: String? = null,
+    val agent: String? = null,
+    val subAgent: String? = null,
+    val skill: String? = null,
 )
 
 data class ValidatedAction(
@@ -35,6 +40,10 @@ data class ValidatedAction(
     val timeoutMs: Int,
     val requiresApproval: Boolean = false,
     val approvalReason: String? = null,
+    val recommendation: String,
+    val agent: String,
+    val subAgent: String,
+    val skill: String,
 )
 
 data class ActionPlan(val actions: List<ValidatedAction>)
@@ -42,6 +51,7 @@ data class ActionPlan(val actions: List<ValidatedAction>)
 data class AgentPlan(
     val summary: String,
     val domain: String,
+    val agent: String,
     val subAgent: String,
     val preSubAgent: String?,
     val skill: String,

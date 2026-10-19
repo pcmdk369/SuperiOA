@@ -8,10 +8,13 @@ export function validateAgentPlan(plan) {
   if (!plan || typeof plan !== "object" || Array.isArray(plan)) {
     throw new Error("The planner returned an invalid plan.");
   }
-  for (const field of ["summary", "domain", "subAgent", "skill", "expectedResult"]) {
+  for (const field of ["summary", "domain", "agent", "subAgent", "skill", "expectedResult"]) {
     if (typeof plan[field] !== "string" || !plan[field].trim() || plan[field].length > 300) {
       throw new Error("The planner returned an incomplete plan.");
     }
+  }
+  for (const field of ["agent", "subAgent", "skill"]) {
+    if (plan[field].length > 120) throw new Error("The planner returned an invalid plan route.");
   }
   if (plan.preSubAgent !== undefined && plan.preSubAgent !== null &&
     (typeof plan.preSubAgent !== "string" || plan.preSubAgent.length > 120)) {
@@ -25,6 +28,17 @@ export function validateAgentPlan(plan) {
   for (const action of plan.actions) {
     if (!action || typeof action !== "object" || !supportedActions.has(action.action)) {
       throw new Error("The planner returned an unsupported action.");
+    }
+    if (action.recommendationType !== "RECOMMENDATION") {
+      throw new Error("Every planned action must be a recommendation.");
+    }
+    if (typeof action.recommendation !== "string" || !action.recommendation.trim() || action.recommendation.length > 300) {
+      throw new Error("The planner returned an action without a valid recommendation.");
+    }
+    for (const field of ["agent", "subAgent", "skill"]) {
+      if (typeof action[field] !== "string" || !action[field].trim() || action[field].length > 120) {
+        throw new Error("The planner returned an action without valid agent, sub-agent, and skill attribution.");
+      }
     }
     if (targetRequired.has(action.action) && (typeof action.target !== "string" || !action.target.trim())) {
       throw new Error("The planner returned an action without a target.");
@@ -133,6 +147,69 @@ export class AgentClient {
 
   get isSignedIn() {
     return this.accessToken !== null;
+  }
+
+  async checkConnections() {
+    const { supabaseUrl, anonKey } = this.settings;
+    if (!supabaseUrl || !anonKey) {
+      throw new Error("Save your Supabase URL and public key first.");
+    }
+    let authResponse;
+    try {
+      authResponse = await fetch(`${supabaseUrl}/auth/v1/settings`, {
+        headers: { apikey: anonKey },
+      });
+    } catch {
+      throw new Error("Could not reach Supabase Auth. Check the project URL and network.");
+    }
+    if (!authResponse.ok) {
+      throw new Error(authResponse.status === 401 || authResponse.status === 403
+        ? "Supabase rejected the public key. Check the project URL and key."
+        : `Supabase Auth health check failed (HTTP ${authResponse.status}).`);
+    }
+
+    if (!this.accessToken) {
+      return { supabase: true, backend: null };
+    }
+
+    let backendResponse;
+    try {
+      backendResponse = await fetch(`${supabaseUrl}/functions/v1/agent-execute`, {
+        method: "POST",
+        headers: {
+          apikey: anonKey,
+          authorization: `Bearer ${this.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ mode: "status" }),
+      });
+    } catch {
+      throw new Error("Could not reach the SuperiOA backend. Check the Edge Function deployment and network.");
+    }
+    const backend = await backendResponse.json().catch(() => ({}));
+    if (backendResponse.status === 401) {
+      this.signOut();
+      throw new Error("Your session expired. Sign in again before checking backend connections.");
+    }
+    if (!backendResponse.ok) {
+      const message = {
+        404: "The SuperiOA Edge Function is not deployed.",
+        503: backend.error === "engine_configuration_invalid"
+          ? "An enabled LLM engine has invalid server settings."
+          : "The SuperiOA backend or its Supabase configuration is unavailable.",
+      }[backendResponse.status] ||
+        `The SuperiOA backend health check failed (HTTP ${backendResponse.status}).`;
+      throw new Error(message);
+    }
+    if (
+      !backend || !["ready", "degraded"].includes(backend.status) ||
+      typeof backend.databaseAvailable !== "boolean" ||
+      !Number.isInteger(backend.enabledEngineSlots) ||
+      !Number.isInteger(backend.configuredEngineSlots)
+    ) {
+      throw new Error("The SuperiOA backend returned an invalid health status.");
+    }
+    return { supabase: true, backend };
   }
 
   async plan(task, { signal } = {}) {

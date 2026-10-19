@@ -590,14 +590,24 @@ private fun RunScreen(
         Text(it.summary, style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Route: ${it.domain} → ${it.subAgent}${it.preSubAgent?.let { skill -> " → $skill" }.orEmpty()} → ${it.skill}",
+            "Route: ${it.domain} → ${it.agent} → ${it.subAgent}${it.preSubAgent?.let { skill -> " → $skill" }.orEmpty()} → ${it.skill}",
             style = MaterialTheme.typography.bodySmall,
         )
         Text("Expected result: ${it.expectedResult}", style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(10.dp))
+        Text(
+            "Each step is a recommendation with an assigned agent, sub-agent, and skill. Review the complete workflow before execution.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         it.actions.actions.forEachIndexed { index, action ->
             Column(Modifier.fillMaxWidth().padding(vertical = 7.dp)) {
-                Text("${index + 1}. ${describeAction(action)}", style = MaterialTheme.typography.bodyMedium)
+                Text("${index + 1}. Recommended · ${action.type.name}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                Text(action.recommendation, style = MaterialTheme.typography.bodyMedium)
+                Text("Execute: ${describeAction(action)}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "Agent: ${action.agent} · Sub-agent: ${action.subAgent} · Skill: ${action.skill}",
+                    style = MaterialTheme.typography.labelSmall,
+                )
                 SafetyGate.approvalReason(action)?.let { reason ->
                     Text("Approval checkpoint: $reason", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
                 }

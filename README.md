@@ -10,6 +10,7 @@ The implementation follows the supplied project architecture and the 34-domain A
 - Supabase Auth sign-in and a trusted Edge Function planner. The public project URL/key are client settings; the access token remains in memory for the app session.
 - Five sequential, independently configured OpenAI Chat Completions-compatible LLM slots with per-engine key, base URL, model ID, timeout, retry count, and retry delay. Provider credentials are read only by the Edge Function.
 - Strict action-plan schema validation, sequential fallback, bounded retries, safe usage/error logs, and per-user Row Level Security for engine logs.
+- Per-action recommendation plans with executable action types, coordinator/agent/sub-agent/skill attribution, and complete ordered steps added when needed for the requested result.
 - Android AccessibilityService actions for app launch, Back/Home/Recents, accessible-node tap/type, scroll, swipe, clipboard, wait, and visible-text verification. The service is disabled until the user enables it in Android Settings.
 - A task plan preview before execution, per-action approval prompts for sensitive operations, user-only authentication/security checkpoints, and a stop control. Failed actions stop the workflow; side effects are not blindly retried.
 - Android-only workflow memory: successful, verified routines are versioned, scored, scoped to the starting app, and reused locally when confidence and context match.
@@ -75,6 +76,8 @@ Voice recognition is provided by the device's configured recognition service; av
    Supabase Edge Functions provide the reserved Supabase URL/key variables in the function environment. The migration gives users read access only to their own logs; the function uses the service-role key solely to write authenticated usage/error records.
 
 4. Enter only the project URL and public anon key in the Android/Web settings UI. Never place LLM keys or the service-role key in Gradle properties, browser code, GitHub artifacts, or source control.
+
+On the Web Integrations page, **Test API connections** checks that Supabase Auth is reachable. After signing in, it also checks the deployed Edge Function, usage-log table, and completeness of enabled LLM slot settings. This does not send a prompt to an LLM provider; provider credentials and network access are only verified by an actual planning request, which may incur provider charges.
 
 For local Edge Function checks:
 

@@ -3,13 +3,31 @@ import { validatePlan } from "./plan.ts";
 const validPlan = {
   summary: "Search for project updates",
   domain: "Browser & Web",
+  agent: "SuperiOA Coordinator",
   subAgent: "Research",
   preSubAgent: "Chrome",
   skill: "Chrome",
   expectedResult: "Search results are shown",
   actions: [
-    { action: "OPEN_APP", target: "Chrome" },
-    { action: "VERIFY", target: "Search results" },
+    {
+      recommendationType: "RECOMMENDATION",
+      recommendation:
+        "Open Chrome to search for the requested project updates.",
+      agent: "SuperiOA Coordinator",
+      subAgent: "Browser Research",
+      skill: "App Navigation",
+      action: "OPEN_APP",
+      target: "Chrome",
+    },
+    {
+      recommendationType: "RECOMMENDATION",
+      recommendation: "Confirm that project search results are visible.",
+      agent: "SuperiOA Coordinator",
+      subAgent: "Browser Research",
+      skill: "Visible Result Verification",
+      action: "VERIFY",
+      target: "Search results",
+    },
   ],
 };
 
@@ -25,9 +43,9 @@ Deno.test("accepts an action plan with verification", () => {
 Deno.test("rejects unsupported or unverified action plans", () => {
   for (
     const actions of [
-      [{ action: "RUN_SHELL" }],
-      [{ action: "BACK" }],
-      Array(51).fill({ action: "BACK" }),
+      [{ ...validPlan.actions[0], action: "RUN_SHELL" }],
+      [{ ...validPlan.actions[0], action: "BACK" }],
+      Array(51).fill(validPlan.actions[0]),
     ]
   ) {
     let rejected = false;
@@ -44,8 +62,8 @@ Deno.test("requires user approval for sensitive actions", () => {
   const plan = validatePlan({
     ...validPlan,
     actions: [
-      { action: "TAP", target: "Send" },
-      { action: "VERIFY", target: "Message sent" },
+      { ...validPlan.actions[0], action: "TAP", target: "Send" },
+      { ...validPlan.actions[1], target: "Message sent" },
     ],
   });
   if (!plan.actions[0].requiresApproval || !plan.actions[0].approvalReason) {
@@ -59,7 +77,12 @@ Deno.test("never plans automated password entry", () => {
     validatePlan({
       ...validPlan,
       actions: [
-        { action: "TYPE", target: "Password", text: "secret" },
+        {
+          ...validPlan.actions[0],
+          action: "TYPE",
+          target: "Password",
+          text: "secret",
+        },
         validPlan.actions[1],
       ],
     });
@@ -67,4 +90,29 @@ Deno.test("never plans automated password entry", () => {
     rejected = true;
   }
   if (!rejected) throw new Error("A password-entry action was accepted.");
+});
+
+Deno.test("requires recommendation metadata and routing on every action", () => {
+  for (
+    const invalidAction of [
+      { ...validPlan.actions[0], recommendationType: "EXECUTE" },
+      { ...validPlan.actions[0], recommendation: "" },
+      { ...validPlan.actions[0], skill: "" },
+    ]
+  ) {
+    let rejected = false;
+    try {
+      validatePlan({
+        ...validPlan,
+        actions: [invalidAction, validPlan.actions[1]],
+      });
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) {
+      throw new Error(
+        "An action without complete recommendation metadata was accepted.",
+      );
+    }
+  }
 });

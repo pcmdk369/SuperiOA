@@ -4,6 +4,8 @@ object ActionValidator {
     private const val MAX_ACTIONS = 50
     private const val MAX_TARGET_LENGTH = 200
     private const val MAX_TEXT_LENGTH = 2_000
+    private const val MAX_RECOMMENDATION_LENGTH = 300
+    private const val MAX_ROUTE_LABEL_LENGTH = 120
     private const val DEFAULT_TIMEOUT_MS = 5_000
     private const val MAX_TIMEOUT_MS = 30_000
 
@@ -55,6 +57,21 @@ object ActionValidator {
             if (candidate.approvalReason != null && candidate.approvalReason.length > MAX_TARGET_LENGTH) {
                 return PlanValidation.Invalid("Action ${index + 1} has an approval reason that is too long.")
             }
+            if (candidate.recommendationType != "RECOMMENDATION") {
+                return PlanValidation.Invalid("Action ${index + 1} must be a recommendation.")
+            }
+            val recommendation = candidate.recommendation?.takeIf {
+                it.isNotBlank() && it.length <= MAX_RECOMMENDATION_LENGTH
+            } ?: run {
+                return PlanValidation.Invalid("Action ${index + 1} requires a concise recommendation.")
+            }
+            val routeLabels = listOf(candidate.agent, candidate.subAgent, candidate.skill)
+            if (routeLabels.any { it.isNullOrBlank() || it.length > MAX_ROUTE_LABEL_LENGTH }) {
+                return PlanValidation.Invalid("Action ${index + 1} requires agent, sub-agent, and skill attribution.")
+            }
+            val agent = candidate.agent.orEmpty()
+            val subAgent = candidate.subAgent.orEmpty()
+            val skill = candidate.skill.orEmpty()
 
             val timeout = candidate.timeoutMs ?: DEFAULT_TIMEOUT_MS
             if (timeout !in 1..MAX_TIMEOUT_MS) {
@@ -67,6 +84,10 @@ object ActionValidator {
                 timeout,
                 candidate.requiresApproval,
                 candidate.approvalReason,
+                recommendation,
+                agent,
+                subAgent,
+                skill,
             )
         }
 

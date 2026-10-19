@@ -8,7 +8,7 @@ class ActionValidatorTest {
     @Test
     fun acceptsValidPlanAndAppliesDefaultTimeout() {
         val result = ActionValidator.validate(
-            listOf(ProposedAction(action = "OPEN_APP", target = "Chrome")),
+            listOf(recommended(action = "OPEN_APP", target = "Chrome")),
         )
 
         val plan = assertIs<PlanValidation.Valid>(result).plan
@@ -19,23 +19,23 @@ class ActionValidatorTest {
     @Test
     fun rejectsUnknownActionAndMissingRequiredFields() {
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(listOf(ProposedAction(action = "RUN_SHELL"))),
+            ActionValidator.validate(listOf(recommended(action = "RUN_SHELL"))),
         )
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(listOf(ProposedAction(action = "TAP"))),
+            ActionValidator.validate(listOf(recommended(action = "TAP"))),
         )
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(listOf(ProposedAction(action = "TYPE", target = "Search"))),
+            ActionValidator.validate(listOf(recommended(action = "TYPE", target = "Search"))),
         )
     }
 
     @Test
     fun rejectsOutOfRangeTimeoutAndUnexpectedFields() {
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(listOf(ProposedAction(action = "WAIT", timeoutMs = 30_001))),
+            ActionValidator.validate(listOf(recommended(action = "WAIT", timeoutMs = 30_001))),
         )
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(listOf(ProposedAction(action = "BACK", text = "unexpected"))),
+            ActionValidator.validate(listOf(recommended(action = "BACK", text = "unexpected"))),
         )
     }
 
@@ -43,7 +43,7 @@ class ActionValidatorTest {
     fun rejectsPlansOutsideActionCountBounds() {
         assertIs<PlanValidation.Invalid>(ActionValidator.validate(emptyList()))
         assertIs<PlanValidation.Invalid>(
-            ActionValidator.validate(List(51) { ProposedAction(action = "BACK") }),
+            ActionValidator.validate(List(51) { recommended(action = "BACK") }),
         )
     }
 
@@ -51,18 +51,18 @@ class ActionValidatorTest {
     fun requiresAReasonForExplicitApprovalAndRejectsOrphanReasons() {
         assertIs<PlanValidation.Invalid>(
             ActionValidator.validate(
-                listOf(ProposedAction(action = "TAP", target = "Send", requiresApproval = true)),
+                listOf(recommended(action = "TAP", target = "Send", requiresApproval = true)),
             ),
         )
         assertIs<PlanValidation.Invalid>(
             ActionValidator.validate(
-                listOf(ProposedAction(action = "BACK", approvalReason = "Sensitive action")),
+                listOf(recommended(action = "BACK", approvalReason = "Sensitive action")),
             ),
         )
         assertIs<PlanValidation.Valid>(
             ActionValidator.validate(
                 listOf(
-                    ProposedAction(
+                    recommended(
                         action = "TAP",
                         target = "Send",
                         requiresApproval = true,
@@ -74,15 +74,65 @@ class ActionValidatorTest {
     }
 
     @Test
+    fun requiresEveryActionToHaveRecommendationAndAgentSkillAttribution() {
+        assertIs<PlanValidation.Invalid>(
+            ActionValidator.validate(listOf(ProposedAction(action = "BACK"))),
+        )
+        assertIs<PlanValidation.Invalid>(
+            ActionValidator.validate(
+                listOf(recommended(action = "BACK").copy(recommendationType = "EXECUTE")),
+            ),
+        )
+        assertIs<PlanValidation.Valid>(
+            ActionValidator.validate(listOf(recommended(action = "BACK"))),
+        )
+    }
+
+    @Test
     fun detectsSensitiveActionsIndependentlyOfThePlannerFlag() {
-        val action = ValidatedAction(ActionType.TAP, "Pay now", null, 5_000)
+        val action = recommendedValidated(ActionType.TAP, "Pay now")
         assertEquals(
             "This action may affect a sensitive or external operation.",
             SafetyGate.approvalReason(action),
         )
         assertEquals(
             null,
-            SafetyGate.approvalReason(ValidatedAction(ActionType.BACK, null, null, 5_000)),
+            SafetyGate.approvalReason(recommendedValidated(ActionType.BACK)),
         )
     }
+
+    private fun recommended(
+        action: String,
+        target: String? = null,
+        text: String? = null,
+        timeoutMs: Int? = null,
+        requiresApproval: Boolean = false,
+        approvalReason: String? = null,
+    ) = ProposedAction(
+        action = action,
+        target = target,
+        text = text,
+        timeoutMs = timeoutMs,
+        requiresApproval = requiresApproval,
+        approvalReason = approvalReason,
+        recommendationType = "RECOMMENDATION",
+        recommendation = "Recommended next step for the task.",
+        agent = "SuperiOA Coordinator",
+        subAgent = "Device",
+        skill = "Navigation",
+    )
+
+    private fun recommendedValidated(
+        type: ActionType,
+        target: String? = null,
+    ) = ValidatedAction(
+        type = type,
+        target = target,
+        text = null,
+        timeoutMs = 5_000,
+        recommendation = "Recommended next step for the task.",
+        agent = "SuperiOA Coordinator",
+        subAgent = "Device",
+        skill = "Navigation",
+    )
 }

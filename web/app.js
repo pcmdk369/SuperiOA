@@ -170,7 +170,7 @@ function createTask() {
   save();
   render();
   taskInput.value = "";
-  saveDraftButton.disabled = true;
+  taskInput.dispatchEvent(new Event("input", { bubbles: true }));
   notice.textContent = "Draft saved locally. It has not been sent to an AI provider or executed.";
   taskInput.focus();
 }
@@ -182,13 +182,20 @@ function renderPlan(plan, engineId) {
     const approval = action.requiresApproval
       ? `<p class="approval-note">User approval required: ${escapeHtml(action.approvalReason)}</p>`
       : "";
-    return `<li><strong>${escapeHtml(description)}</strong>${approval}</li>`;
+    return `<li class="recommended-action">
+      <span class="recommendation-badge">Recommended · ${escapeHtml(action.action)}</span>
+      <strong>${escapeHtml(action.recommendation)}</strong>
+      <p class="action-execution">Execution step: ${escapeHtml(description)}</p>
+      <p class="action-route">Agent: ${escapeHtml(action.agent)} · Sub-agent: ${escapeHtml(action.subAgent)} · Skill: ${escapeHtml(action.skill)}</p>
+      ${approval}
+    </li>`;
   }).join("");
   const hasApproval = plan.actions.some((action) => action.requiresApproval);
   result.innerHTML = `<p class="mono-label">PLAN PREVIEW · ${escapeHtml(engineId)}</p>
     <h2>${escapeHtml(plan.summary)}</h2>
-    <p>Route: ${escapeHtml(plan.domain)} → ${escapeHtml(plan.subAgent)}${plan.preSubAgent ? ` → ${escapeHtml(plan.preSubAgent)}` : ""} → ${escapeHtml(plan.skill)}</p>
+    <p>Route: ${escapeHtml(plan.domain)} → ${escapeHtml(plan.agent)} → ${escapeHtml(plan.subAgent)}${plan.preSubAgent ? ` → ${escapeHtml(plan.preSubAgent)}` : ""} → ${escapeHtml(plan.skill)}</p>
     <p>Expected result: ${escapeHtml(plan.expectedResult)}</p>
+    <p class="preview-note">Every step is a recommendation. Review the complete workflow before execution; extra steps are included when needed to meet the expected result.</p>
     <ol>${actions}</ol>
     ${hasApproval ? '<p class="approval-note">One or more steps require explicit user approval before any execution.</p>' : ""}
     <p class="preview-note">This web app creates a plan preview only. Browser security does not let this page operate other websites or Android apps. Use the Android app for explicitly enabled local Accessibility actions.</p>`;
@@ -244,10 +251,10 @@ function updateIntegrationStatus() {
     ? "Public project settings saved"
     : "Not connected";
   document.querySelector("#llm-status-text").textContent = configured
-    ? (agentClient.isSignedIn ? "Authenticated; providers are server-configured" : "Sign in to call the trusted planner")
+    ? (agentClient.isSignedIn ? "Authenticated; test backend readiness" : "Sign in to check backend readiness")
     : "Configure Supabase Auth";
-  document.querySelector("#llm-status").textContent = agentClient.isSignedIn ? "Ready" : "Offline";
-  document.querySelector("#llm-status").className = `status-tag ${agentClient.isSignedIn ? "ready" : "offline"}`;
+  document.querySelector("#llm-status").textContent = agentClient.isSignedIn ? "Auth only" : "Offline";
+  document.querySelector("#llm-status").className = `status-tag ${agentClient.isSignedIn ? "neutral" : "offline"}`;
   document.querySelector("#supabase-url").value = agentClient.settings.supabaseUrl;
   document.querySelector("#supabase-anon-key").value = agentClient.settings.anonKey;
 }
@@ -266,8 +273,7 @@ function startVoiceTask() {
   notice.textContent = "Listening. Speak your task now.";
   recognition.onresult = (event) => {
     taskInput.value = event.results[0][0].transcript;
-    saveDraftButton.disabled = !taskInput.value.trim();
-    planButton.disabled = !taskInput.value.trim();
+    taskInput.dispatchEvent(new Event("input", { bubbles: true }));
     planTask();
   };
   recognition.onerror = (event) => {
@@ -304,10 +310,18 @@ document.addEventListener("click", (event) => {
 taskInput.addEventListener("input", () => {
   planButton.disabled = taskInput.value.trim().length === 0;
   saveDraftButton.disabled = taskInput.value.trim().length === 0;
+  document.querySelector("#task-character-count").textContent = `${taskInput.value.length.toLocaleString()} / 2,000`;
   notice.textContent = "";
 });
 taskInput.addEventListener("keydown", (event) => {
   if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !planButton.disabled) planTask();
+});
+document.querySelectorAll("[data-prompt]").forEach((button) => {
+  button.addEventListener("click", () => {
+    taskInput.value = button.dataset.prompt;
+    taskInput.dispatchEvent(new Event("input", { bubbles: true }));
+    taskInput.focus();
+  });
 });
 planButton.addEventListener("click", planTask);
 voiceButton.addEventListener("click", startVoiceTask);
@@ -323,6 +337,45 @@ document.querySelector("#connection-form").addEventListener("submit", (event) =>
     updateIntegrationStatus();
   } catch (error) {
     connectionNotice.textContent = error instanceof Error ? error.message : "Could not save Supabase settings.";
+  }
+});
+document.querySelector("#test-connections").addEventListener("click", async () => {
+  const button = document.querySelector("#test-connections");
+  const health = document.querySelector("#connection-health");
+  button.disabled = true;
+  button.textContent = "Checking connections…";
+  health.hidden = true;
+  try {
+    if (document.querySelector("#supabase-url").value !== agentClient.settings.supabaseUrl ||
+      document.querySelector("#supabase-anon-key").value !== agentClient.settings.anonKey) {
+      agentClient.saveSettings(
+        document.querySelector("#supabase-url").value,
+        document.querySelector("#supabase-anon-key").value,
+      );
+      updateIntegrationStatus();
+    }
+    const connections = await agentClient.checkConnections();
+    const lines = [
+      `<li><span>Supabase Auth</span><strong class="health-ready">Reachable</strong></li>`,
+    ];
+    if (!connections.backend) {
+      lines.push(`<li><span>SuperiOA backend</span><strong class="health-pending">Sign in to check</strong></li>`);
+      lines.push(`<li><span>LLM providers and usage database</span><strong class="health-pending">Backend check requires sign-in</strong></li>`);
+    } else {
+      const { databaseAvailable, enabledEngineSlots, configuredEngineSlots } = connections.backend;
+      lines.push(`<li><span>SuperiOA backend</span><strong class="${connections.backend.status === "ready" ? "health-ready" : "health-pending"}">${connections.backend.status === "ready" ? "Reachable" : "Degraded"}</strong></li>`);
+      lines.push(`<li><span>Usage database</span><strong class="${databaseAvailable ? "health-ready" : "health-error"}">${databaseAvailable ? "Available" : "Unavailable"}</strong></li>`);
+      lines.push(`<li><span>LLM engine slots</span><strong class="${configuredEngineSlots > 0 ? "health-ready" : "health-pending"}">${configuredEngineSlots} configured · ${enabledEngineSlots} enabled</strong></li>`);
+      lines.push(`<li class="health-footnote">Provider connectivity is not tested here; checking providers requires a planning request and may incur usage charges.</li>`);
+    }
+    health.innerHTML = `<p class="mono-label">CONNECTION CHECK</p><ul>${lines.join("")}</ul>`;
+    health.hidden = false;
+    connectionNotice.textContent = "Connection check complete. No provider request was sent.";
+  } catch (error) {
+    connectionNotice.textContent = error instanceof Error ? error.message : "Could not check API connections.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Test API connections";
   }
 });
 document.querySelector("#auth-form").addEventListener("submit", async (event) => {
@@ -342,13 +395,7 @@ document.querySelector("#auth-form").addEventListener("submit", async (event) =>
     await agentClient.signIn(email, password);
     connectionNotice.textContent = `Signed in as ${email}. The session is held in memory for this page only.`;
     document.querySelector("#sign-out").hidden = false;
-    document.querySelector("#llm-status").textContent = "Ready";
-    document.querySelector("#llm-status").className = "status-tag ready";
-    document.querySelector("#llm-status-text").textContent = "Authenticated; providers remain server-configured";
     updateIntegrationStatus();
-    document.querySelector("#llm-status").textContent = "Ready";
-    document.querySelector("#llm-status").className = "status-tag ready";
-    document.querySelector("#llm-status-text").textContent = "Authenticated; providers remain server-configured";
   } catch (error) {
     connectionNotice.textContent = error instanceof Error ? error.message : "Sign-in failed.";
   } finally {

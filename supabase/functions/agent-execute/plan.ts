@@ -1,4 +1,9 @@
 export type Action = {
+  recommendationType: "RECOMMENDATION";
+  recommendation: string;
+  agent: string;
+  subAgent: string;
+  skill: string;
   action: string;
   target?: string;
   text?: string;
@@ -10,6 +15,7 @@ export type Action = {
 export type AgentPlan = {
   summary: string;
   domain: string;
+  agent: string;
   subAgent: string;
   preSubAgent: string | null;
   skill: string;
@@ -46,6 +52,8 @@ const targetRequired = new Set([
   "VERIFY",
 ]);
 const textRequired = new Set(["TYPE", "REQUEST_USER"]);
+const maxRecommendationLength = 300;
+const maxRouteLabelLength = 120;
 const sensitiveContext =
   /\b(send|publish|post|delete|remove|purchase|buy|checkout|pay|payment|transfer|password|passcode|otp|captcha|biometric|security|confirm)\b/i;
 const authenticationContext =
@@ -59,6 +67,7 @@ export function validatePlan(value: unknown): AgentPlan {
   const requiredLabels = [
     "summary",
     "domain",
+    "agent",
     "subAgent",
     "skill",
     "expectedResult",
@@ -69,6 +78,14 @@ export function validatePlan(value: unknown): AgentPlan {
       plan[label].length > 300
     ) {
       throw new PlanError("invalid_plan");
+    }
+  }
+  for (const label of ["agent", "subAgent", "skill"] as const) {
+    if (
+      typeof plan[label] !== "string" || !plan[label].trim() ||
+      plan[label].length > maxRouteLabelLength
+    ) {
+      throw new PlanError("invalid_plan_route");
     }
   }
   if (
@@ -93,6 +110,24 @@ export function validatePlan(value: unknown): AgentPlan {
     const action = candidate as Record<string, unknown>;
     if (typeof action.action !== "string" || !actionNames.has(action.action)) {
       throw new PlanError("unsupported_action");
+    }
+    if (action.recommendationType !== "RECOMMENDATION") {
+      throw new PlanError("action_must_be_recommended");
+    }
+    if (
+      typeof action.recommendation !== "string" ||
+      !action.recommendation.trim() ||
+      action.recommendation.length > maxRecommendationLength
+    ) {
+      throw new PlanError("invalid_action_recommendation");
+    }
+    for (const label of ["agent", "subAgent", "skill"] as const) {
+      if (
+        typeof action[label] !== "string" || !action[label].trim() ||
+        action[label].length > maxRouteLabelLength
+      ) {
+        throw new PlanError("invalid_action_route");
+      }
     }
     if (
       targetRequired.has(action.action) &&
@@ -166,6 +201,11 @@ export function validatePlan(value: unknown): AgentPlan {
         `${String(action.target ?? "")} ${String(action.text ?? "")}`,
       );
     return {
+      recommendationType: "RECOMMENDATION",
+      recommendation: action.recommendation as string,
+      agent: action.agent as string,
+      subAgent: action.subAgent as string,
+      skill: action.skill as string,
       action: action.action,
       ...(action.target === undefined
         ? {}
@@ -189,6 +229,7 @@ export function validatePlan(value: unknown): AgentPlan {
   return {
     summary: plan.summary as string,
     domain: plan.domain as string,
+    agent: plan.agent as string,
     subAgent: plan.subAgent as string,
     preSubAgent: (plan.preSubAgent as string | null | undefined) ?? null,
     skill: plan.skill as string,

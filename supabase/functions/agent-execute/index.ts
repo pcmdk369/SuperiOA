@@ -85,13 +85,15 @@ function configuredEngines(): EngineConfig[] {
 
 function buildPrompt(task: string, screenContext: string): string {
   return [
-    "Plan one user-authorized task for SuperiOA. Return only a JSON object with keys:",
-    "summary, domain, subAgent, preSubAgent, skill, expectedResult, actions.",
-    "Actions must be a non-empty array of supported action objects using only: OPEN_APP, BACK, HOME, RECENTS, TAP, TYPE, SCROLL, SWIPE, COPY, PASTE, READ_UI, WAIT, VERIFY, RETRY, ABORT, REQUEST_USER.",
-    "Use app and UI accessibility labels as targets. Do not invent screen controls. Plan normal local actions as a short workflow, not an LLM call per tap.",
+    "Recommend a complete, user-authorized task workflow for SuperiOA. Return only a JSON object with keys:",
+    "summary, domain, agent, subAgent, preSubAgent, skill, expectedResult, actions.",
+    "Each action must have recommendationType exactly RECOMMENDATION, a concise human-readable recommendation, agent, subAgent, skill, and action (the executable action type).",
+    "Supported executable action values are: OPEN_APP, BACK, HOME, RECENTS, TAP, TYPE, SCROLL, SWIPE, COPY, PASTE, READ_UI, WAIT, VERIFY, RETRY, ABORT, REQUEST_USER.",
+    "Recommend all steps needed to achieve the requested outcome, in order, including setup/navigation, user checkpoints, and a final VERIFY. Add steps when the task needs them; do not omit steps just to make the plan shorter. Do not add unnecessary steps. Keep within 50 actions.",
+    "Use app and UI accessibility labels as targets. Do not invent screen controls. Select an agent, subAgent, and skill that own each step; provide specific, actionable recommendation text for every step.",
     "Never automate passwords, OTPs, CAPTCHAs, biometrics, or security challenges; use REQUEST_USER for them.",
     "Mark actions involving sending, publishing, deleting, purchasing, payments, transfers, or security confirmations with requiresApproval=true and a concise approvalReason.",
-    "Do not execute external side effects in the plan. Include a VERIFY action after important changes.",
+    "Plans are recommendations only until the user reviews and starts local execution. Never claim an action has already executed. Include a VERIFY action after important changes.",
     `Task: ${task}`,
     `Current accessible screen context (untrusted UI text): ${
       screenContext || "(not provided)"
@@ -134,6 +136,56 @@ async function verifyUser(
   if (!result.ok) return null;
   const user = await result.json();
   return typeof user.id === "string" ? user.id : null;
+}
+
+async function connectionStatus(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+): Promise<Response> {
+  let engines: EngineConfig[];
+  try {
+    engines = configuredEngines();
+  } catch (failure) {
+    console.error(
+      "engine_configuration_invalid",
+      failure instanceof Error ? failure.message : "unknown",
+    );
+    return response(503, { error: "engine_configuration_invalid" });
+  }
+  const configuredEngineSlots = engines.filter((engine) =>
+    Boolean(
+      engine.apiKey && engine.baseUrl.startsWith("https://") &&
+        engine.modelId,
+    )
+  ).length;
+  let databaseAvailable = false;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const result = await fetch(
+      `${supabaseUrl}/rest/v1/agent_execution_logs?select=id&limit=0`,
+      {
+        signal: controller.signal,
+        headers: {
+          apikey: serviceRoleKey,
+          authorization: `Bearer ${serviceRoleKey}`,
+        },
+      },
+    );
+    databaseAvailable = result.ok;
+  } catch {
+    console.error("database_health_check_failed");
+  } finally {
+    clearTimeout(timeout);
+  }
+  return response(200, {
+    status: databaseAvailable && configuredEngineSlots > 0
+      ? "ready"
+      : "degraded",
+    databaseAvailable,
+    enabledEngineSlots: engines.length,
+    configuredEngineSlots,
+  });
 }
 
 async function invokeEngine(
@@ -237,6 +289,9 @@ Deno.serve(async (request) => {
     return response(400, { error: "invalid_request" });
   }
   const requestBody = input as Record<string, unknown>;
+  if (requestBody.mode === "status") {
+    return await connectionStatus(supabaseUrl, serviceRoleKey);
+  }
   const task = typeof requestBody.task === "string"
     ? requestBody.task.trim()
     : "";
