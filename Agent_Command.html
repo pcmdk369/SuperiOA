@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101827">
+<title>SuperiOA™ — Agent Build Command</title>
+<style>
+:root{color-scheme:dark;--bg:#0b1020;--panel:#121a2b;--line:#29364d;--text:#edf2fa;--muted:#a9b7cc;--accent:#78aaff;}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top right,#17294a 0,transparent 38%),var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1000px;margin:auto;padding:28px 18px 60px}header,.panel{background:rgba(18,26,43,.94);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:18px}
+.eyebrow{text-transform:uppercase;letter-spacing:.14em;color:var(--accent);font-size:.76rem;font-weight:700}
+h1{line-height:1.15;margin:.45rem 0 1rem;font-size:clamp(1.8rem,5vw,3rem)}h2{font-size:1.15rem;margin-top:0}p,.muted{color:var(--muted)}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+button{border:1px solid var(--line);border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer;background:#1d2a41;color:var(--text)}
+button.primary{background:var(--accent);color:#071226;border-color:transparent}
+textarea{width:100%;min-height:420px;resize:vertical;border:1px solid var(--line);border-radius:12px;padding:14px;background:#080d18;color:#e9f0ff;font:13px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace}
+ul{padding-left:1.25rem}li{margin:.35rem 0}.pill{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:4px 9px;margin:4px 5px 0 0;color:var(--muted);font-size:.82rem}
+footer{color:var(--muted);font-size:.85rem;text-align:center;padding:10px}
+</style>
+</head>
+<body>
+<main>
+<header>
+<div class="eyebrow">PCMDK369™ · Build instruction</div>
+<h1>SuperiOA™ Agent Command</h1>
+<p>Copy this all-in-one instruction into your coding agent (Codex, Claude Code, or another repository-aware agent). Put <strong>List.md</strong> in the repository root first. The command tells the agent to inspect the project, read requirements, build the MVP, test it, and report what really worked.</p>
+<div><span class="pill">Android · Kotlin · Jetpack Compose</span><span class="pill">5-engine sequential failover</span><span class="pill">Supabase optional</span><span class="pill">Security-first local execution</span></div>
+<div class="actions">
+<button class="primary" id="copyBtn">Copy full agent command</button>
+<button id="downloadBtn">Download command as .txt</button>
+</div>
+<p id="status" aria-live="polite"></p>
+</header>
+<section class="panel">
+<h2>Before you run it</h2>
+<ul>
+<li>Open the actual SuperiOA repository in your coding agent or IDE.</li>
+<li>Place the requirements file named <code>List.md</code> in the repository root.</li>
+<li>Review the agent's proposed file changes before accepting destructive or security-sensitive edits.</li>
+<li>Use placeholder credentials; never commit API keys or Supabase service-role secrets.</li>
+</ul>
+</section>
+<section class="panel">
+<h2>Full command</h2>
+<textarea id="command" spellcheck="false" aria-label="Full agent build command">You are the lead Android engineer and software-building agent for SuperiOA™ by PCMDK369™.
+
+MISSION
+Build a working, secure, installable Android MVP for SuperiOA using the project requirements in the supplied `List.md`. Do not merely produce a plan or mockup. Inspect the existing repository first, preserve useful working code, then implement the application, tests, setup documentation, and build instructions.
+
+SOURCE OF TRUTH
+1. Read `List.md` completely before making changes.
+2. Treat `List.md` as the primary requirements source. Do not silently invent API providers, credentials, features, or implementation status.
+3. If the repository already contains code, inspect its structure, README, build files, and git status before editing.
+4. Keep a clear checklist of requirements as implemented / partial / missing / blocked.
+5. If a requirement cannot be completed because credentials, hardware, permissions, or external services are unavailable, implement a safe interface or stub, document the blocker, and continue with the rest.
+
+CORE PRODUCT
+SuperiOA is an Android task-orchestration assistant. The LLM plans and returns structured actions; Android executes supported actions locally through approved Android APIs and AccessibilityService. Do not create a separate AI brain for each app. Use a central coordinator and reusable app/web skills.
+
+REQUIRED WORKFLOW
+A. Audit the repository and environment.
+B. Read `List.md` and extract requirements.
+C. Write a concise implementation plan and acceptance checklist.
+D. Implement the smallest complete vertical slice first, then expand.
+E. Run available formatting, unit tests, lint, and build checks.
+F. Fix errors and rerun checks.
+G. Update README with exact setup, permissions, configuration, build, testing, and known limitations.
+H. Report actual results honestly; never claim a build/test passed unless it was run successfully.
+
+TECHNICAL DIRECTION
+- Prefer Kotlin and Jetpack Compose for a native Android application unless the existing project has a justified, working alternative.
+- Use Android AccessibilityService only with clear user disclosure, explicit enablement, and user-controlled permissions.
+- Use Android PackageManager for installed-app discovery where platform rules permit.
+- Use Room/SQLite for structured local workflow data and DataStore for settings where appropriate.
+- Use HTTPS for network calls and JSON for structured requests/responses.
+- Keep taps, typing, scrolling, UI reading, waiting, retries, and verification local whenever possible; do not send screenshots or personal UI content to an external service unless necessary, disclosed, and approved.
+- Add clear error states, loading states, permission onboarding, and a user-visible stop/cancel control.
+- Follow Android platform policies and applicable store policies. Do not hide automation or bypass app security controls.
+
+ACTION ENGINE
+Implement a typed, validated action model for supported actions such as:
+OPEN_APP, BACK, HOME, RECENTS, TAP, TYPE, SCROLL, SWIPE, COPY, PASTE, READ_UI, WAIT, VERIFY, RETRY, ABORT, REQUEST_USER.
+Validate every model-generated action against a strict schema, allowed action list, bounds, and execution state before running it. Unknown or malformed actions must fail safely. Add timeouts, retry limits, action logs, and verification after important steps.
+
+AGENT / ORCHESTRATION ARCHITECTURE
+Implement reusable modules or clear interfaces for:
+- LLM Coordinator
+- Task Orchestrator
+- App/Web Skill registry
+- Universal Action Engine
+- Workflow Memory
+- Permission and Security Gate
+- Result Verification and Error Recovery
+- Settings and API configuration
+
+FIVE-ENGINE LLM FAILOVER
+Implement five sequential LLM provider slots, not five parallel agents. Each slot must have independent configuration for API key, base URL, model ID, enabled state, and timeout. Try enabled engines in configured order. On retryable failure (network error, timeout, rate limit, or provider/server error), move to the next enabled engine. Do not fail over on user cancellation or a deliberate security denial. Apply per-engine timeouts, bounded retries, useful diagnostics with secrets redacted, and a final actionable error if all engines fail.
+Use configuration names:
+LLM_ENGINE_1_API_KEY, LLM_ENGINE_1_BASE_URL, LLM_ENGINE_1_MODEL_ID
+LLM_ENGINE_2_API_KEY, LLM_ENGINE_2_BASE_URL, LLM_ENGINE_2_MODEL_ID
+LLM_ENGINE_3_API_KEY, LLM_ENGINE_3_BASE_URL, LLM_ENGINE_3_MODEL_ID
+LLM_ENGINE_4_API_KEY, LLM_ENGINE_4_BASE_URL, LLM_ENGINE_4_MODEL_ID
+LLM_ENGINE_5_API_KEY, LLM_ENGINE_5_BASE_URL, LLM_ENGINE_5_MODEL_ID
+Never hard-code real secrets or commit API keys. Make provider compatibility explicit; do not assume every provider supports the same request format.
+
+SUPABASE / BACKEND
+Use Supabase only for features that genuinely need a backend, such as optional account sync or cloud-stored user settings/workflows. Keep local-first operation possible where practical. Use Row Level Security (RLS), least-privilege policies, and server-side secrets for privileged operations. Never ship a Supabase service-role key in the Android app. Include migrations and policy documentation if backend schema is added. If no credentials are supplied, provide `.env.example` with placeholders and clear setup steps.
+
+VOICE AND WEB
+- Keep speech-to-text (STT) and text-to-speech (TTS) behind provider interfaces so Android-native capabilities can be used where suitable and external providers can be configured optionally.
+- Treat Chrome/browser control and web search as separate capabilities. Browser interaction must be transparent and permission-based; web search should use a documented provider interface and must not be fabricated when unconfigured.
+- OCR/vision should be optional and invoked only when accessibility-tree information is insufficient. Disclose any external image transfer and require consent when relevant.
+
+SECURITY AND HUMAN APPROVAL
+Pause and request the user for CAPTCHA, OTP, passwords, biometric prompts, payment, account-security confirmations, or other sensitive/high-impact actions. Never attempt to bypass these controls. Do not store passwords, OTPs, access tokens, or raw sensitive screen contents in workflow memory or logs. Redact secrets from logs. Provide a stop button and safe cancellation path.
+
+WORKFLOW MEMORY
+Store reusable workflows with version, app/context, steps, success/failure outcomes, confidence, and last-used metadata. Reuse only when the context matches and confidence meets a defined threshold. Disable or request confirmation for unreliable workflows. Provide a way to clear stored workflows and explain what is stored.
+
+QUALITY REQUIREMENTS
+- Build a real, navigable UI, not a static concept screen.
+- Include onboarding, home/task input, task progress, approval prompts, settings, LLM engine configuration, and execution history appropriate to the MVP.
+- Include validation and meaningful empty/loading/error states.
+- Add unit tests for action validation, failover ordering, retry behavior, secret redaction, and workflow confidence where feasible.
+- Keep code modular, readable, and documented.
+- Do not add paid services without user approval. Do not generate or publish content, make purchases, send messages, delete user data, or perform other external side effects without clear confirmation.
+- Use placeholder credentials only. Do not ask the user to paste secrets into source files.
+
+DELIVERABLES
+1. Implemented project code in the existing repository.
+2. `README.md` with setup and build instructions.
+3. `.env.example` or safe configuration template, if applicable.
+4. Requirements checklist mapped to `List.md`.
+5. Tests and the actual output/status of build and test commands.
+6. A list of files created/changed.
+7. Known limitations, blockers, and next steps.
+
+WORKING RULES
+- Do not stop after writing a plan; proceed to implementation.
+- Do not delete or overwrite user work without inspecting it first.
+- Avoid broad rewrites when a small targeted change is safer.
+- Do not claim to have deployed, installed, tested on a device, or obtained credentials unless that actually happened.
+- If running in a limited environment that cannot build Android APKs, still implement the code and run all checks available, then state exactly what remains to be run on a proper Android build environment.
+- Finish with a concise report: implemented, files changed, tests/build results, setup steps, and blockers.
+</textarea>
+<div class="actions"><button class="primary" id="copyBtn2">Copy command</button></div>
+</section>
+<footer>PCMDK369™ · SuperiOA™ · Agent instructions only; this HTML does not itself compile or install an APK.</footer>
+</main>
+<script>
+const command = document.getElementById('command');
+const status = document.getElementById('status');
+async function copyCommand() {
+  try { await navigator.clipboard.writeText(command.value); status.textContent = 'Command copied.'; }
+  catch (e) { command.focus(); command.select(); status.textContent = 'Clipboard access unavailable. The command is selected; use Copy from your browser menu.'; }
+}
+document.getElementById('copyBtn').addEventListener('click', copyCommand);
+document.getElementById('copyBtn2').addEventListener('click', copyCommand);
+document.getElementById('downloadBtn').addEventListener('click', () => {
+  const blob = new Blob([command.value], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'SuperiOA_Agent_Build_Command.txt';
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  status.textContent = 'Text command download started.';
+});
+</script>
+</body>
+</html>
