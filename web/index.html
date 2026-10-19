@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#18201c">
+  <meta name="description" content="SuperiOA task desk for planning and tracking device workflows.">
+  <title>SuperiOA | Task Desk</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="#overview" aria-label="SuperiOA home">
+        <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span>Superi<span class="brand-accent">OA</span><sup>TM</sup></span>
+      </a>
+
+      <div class="workspace-switcher">
+        <span class="workspace-avatar">P</span>
+        <span class="workspace-name">Personal workspace<small>Local device</small></span>
+        <span class="switcher-mark" aria-hidden="true">⌄</span>
+      </div>
+
+      <p class="nav-label">Workspace</p>
+      <nav class="main-nav">
+        <button class="nav-item active" data-view="overview" aria-current="page"><span class="nav-icon" aria-hidden="true">◫</span>Overview</button>
+        <button class="nav-item" data-view="tasks"><span class="nav-icon" aria-hidden="true">≡</span>Task queue<span class="nav-count" id="nav-count">0</span></button>
+        <button class="nav-item" data-view="skills"><span class="nav-icon" aria-hidden="true">✳</span>Skills<span class="nav-count" id="skill-nav-count">34</span></button>
+        <button class="nav-item" data-view="workflows"><span class="nav-icon" aria-hidden="true">⌘</span>Workflows</button>
+        <button class="nav-item" data-view="activity"><span class="nav-icon" aria-hidden="true">◷</span>Activity</button>
+      </nav>
+
+      <p class="nav-label nav-label-lower">Manage</p>
+      <nav class="main-nav">
+        <button class="nav-item" data-view="integrations"><span class="nav-icon" aria-hidden="true">⊙</span>Integrations<span class="connection-dot" aria-label="Not connected"></span></button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="privacy-note"><span class="privacy-symbol" aria-hidden="true">◇</span><span><strong>Stored on this device</strong><small>Drafts stay in this browser.</small></span></div>
+        <div class="profile-row"><span class="profile-avatar">P</span><span>PCMDK369<small>Personal plan</small></span><button class="icon-button" aria-label="Account options" title="Account options">···</button></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="topbar">
+        <div class="breadcrumbs"><span>Workspace</span><span aria-hidden="true">/</span><strong id="breadcrumb-current">Overview</strong></div>
+        <div class="topbar-actions">
+          <span class="system-status"><i></i> Local mode</span>
+          <button class="help-button" data-view="integrations">System status <span aria-hidden="true">↗</span></button>
+        </div>
+      </header>
+
+      <div class="page-wrap">
+        <section class="view active-view" id="view-overview" aria-labelledby="page-title">
+          <div class="page-heading">
+            <div>
+              <p class="eyebrow" id="today-label">SUPERIOA TASK DESK</p>
+              <h1 id="page-title">Make the next move.</h1>
+              <p class="page-subtitle">Set an intention. SuperiOA will keep your work organized while integrations are being configured.</p>
+            </div>
+            <span class="date-stamp" id="date-stamp"></span>
+          </div>
+
+          <div class="overview-grid">
+            <div class="primary-column">
+              <section class="composer" aria-labelledby="composer-title">
+                <div class="composer-topline"><span class="section-index">01</span><span class="mono-label">NEW TASK</span><span class="composer-hint">Saved as a local draft</span></div>
+                <label class="visually-hidden" for="task-input">Describe a task</label>
+                <textarea id="task-input" maxlength="500" placeholder="What would you like to get done?" rows="3"></textarea>
+                <div class="composer-footer">
+                  <span class="privacy-inline"><span aria-hidden="true">◇</span> Private to this browser</span>
+                  <button class="button-primary" id="add-task" type="button" disabled><span aria-hidden="true">＋</span> Add to queue</button>
+                </div>
+                <div class="composer-notice" id="composer-notice" role="status" aria-live="polite"></div>
+              </section>
+
+              <section class="queue-section" aria-labelledby="queue-heading">
+                <div class="section-heading">
+                  <div><p class="mono-label">YOUR WORKSPACE</p><h2 id="queue-heading">Task queue <span class="heading-count" id="task-count">0</span></h2></div>
+                  <button class="text-button" data-view="tasks">View all <span aria-hidden="true">→</span></button>
+                </div>
+                <div class="task-list" id="overview-task-list"></div>
+                <div class="empty-state" id="overview-empty">
+                  <span class="empty-glyph" aria-hidden="true">✳</span>
+                  <div><strong>A clear queue is a good place to start.</strong><p>Add a task above to create your first local draft.</p></div>
+                </div>
+              </section>
+
+              <section class="workflow-strip">
+                <div class="workflow-orbit" aria-hidden="true"><span>01</span><span>02</span><span>03</span><i></i></div>
+                <div><p class="mono-label">THE SUPERIOA LOOP</p><strong>Plan · Act · Verify</strong><p>One coordinator. Local actions. Results checked along the way.</p></div>
+                <button class="icon-button strip-arrow" data-view="workflows" aria-label="View workflows" title="View workflows">↗</button>
+              </section>
+            </div>
+
+            <aside class="right-rail" aria-label="System overview">
+              <section class="readiness-panel">
+                <div class="rail-heading"><span class="readiness-mark" aria-hidden="true">!</span><div><p class="mono-label">SYSTEM READINESS</p><h2>Setup in progress</h2></div></div>
+                <p class="readiness-copy">Drafts are ready. Planning and device actions need connected services.</p>
+                <div class="readiness-meter"><span></span></div>
+                <div class="readiness-score"><span>Workspace setup</span><strong>1 <small>/ 5</small></strong></div>
+                <button class="button-outline" data-view="integrations">Review integrations <span aria-hidden="true">→</span></button>
+              </section>
+
+              <section class="rail-section">
+                <div class="section-heading compact"><div><p class="mono-label">CONNECTIONS</p><h2>Service status</h2></div></div>
+                <ul class="service-list">
+                  <li><span class="service-icon llm-icon">AI</span><span class="service-name">LLM coordinator<small>Provider not configured</small></span><span class="status-tag offline">Offline</span></li>
+                  <li><span class="service-icon device-icon">▦</span><span class="service-name">Android device<small>Action service not connected</small></span><span class="status-tag offline">Offline</span></li>
+                  <li><span class="service-icon cloud-icon">⌁</span><span class="service-name">Supabase<small>Optional cloud sync</small></span><span class="status-tag neutral">Optional</span></li>
+                </ul>
+              </section>
+
+              <section class="local-card">
+                <div class="local-card-art" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
+                <p class="mono-label">LOCAL FIRST</p>
+                <strong>Your drafts stay yours.</strong>
+                <p>Nothing leaves this browser. Cloud sync is not connected.</p>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <section class="view" id="view-tasks" aria-labelledby="tasks-title" hidden>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / TASK QUEUE</p><h1 id="tasks-title">Task queue</h1><p class="page-subtitle">Local drafts are saved here. Execution is not connected.</p></div></div>
+          <div class="list-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="task-search" type="search" placeholder="Search drafts" autocomplete="off"></label><span class="toolbar-count" id="all-task-count">0 drafts</span></div>
+          <div class="full-task-list" id="full-task-list"></div>
+          <div class="empty-state large-empty" id="tasks-empty"><span class="empty-glyph" aria-hidden="true">✳</span><div><strong>No drafts match this view.</strong><p>Try another search or add a new task from Overview.</p></div><button class="button-outline" data-view="overview">Go to overview</button></div>
+        </section>
+
+        <section class="view" id="view-skills" aria-labelledby="skills-title" hidden>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / CAPABILITY CATALOG</p><h1 id="skills-title">Skills</h1><p class="page-subtitle">Browse the 34 capability domains in the supplied action catalog. These are design references, not connected or executable skills.</p></div></div>
+          <div class="skills-summary">
+            <div><span class="summary-number">34</span><span class="summary-label">skill domains</span></div>
+            <div><span class="summary-number">15,766</span><span class="summary-label">catalogued action ideas</span></div>
+            <span class="status-tag neutral">Reference catalog · Not executable</span>
+          </div>
+          <div class="skills-toolbar">
+            <label class="search-field skill-search"><span aria-hidden="true">⌕</span><input id="skill-search" type="search" placeholder="Search skills or capabilities" autocomplete="off"></label>
+            <div class="skill-filters" role="group" aria-label="Filter skills by area">
+              <button class="filter-chip selected" data-skill-filter="All" aria-pressed="true">All</button>
+              <button class="filter-chip" data-skill-filter="Device" aria-pressed="false">Device</button>
+              <button class="filter-chip" data-skill-filter="Browser & apps" aria-pressed="false">Browser & apps</button>
+              <button class="filter-chip" data-skill-filter="Productivity" aria-pressed="false">Productivity</button>
+              <button class="filter-chip" data-skill-filter="Communication" aria-pressed="false">Communication</button>
+              <button class="filter-chip" data-skill-filter="Media" aria-pressed="false">Media</button>
+              <button class="filter-chip" data-skill-filter="Privacy" aria-pressed="false">Privacy</button>
+            </div>
+          </div>
+          <div class="skills-results"><span id="skill-result-count">34 skill domains</span><span>From Human Android Capability &amp; Action Master List</span></div>
+          <div class="skill-grid" id="skill-grid"></div>
+          <div class="empty-state skills-empty" id="skills-empty" hidden><span class="empty-glyph" aria-hidden="true">⌕</span><div><strong>No matching skill domains.</strong><p>Adjust the search or choose another filter.</p></div></div>
+          <aside class="catalog-caveat"><span aria-hidden="true">i</span><p><strong>Catalog does not equal capability.</strong> Each skill needs an implementation, permission and target-app validation, plus user approval where required. Sensitive actions such as payment, passwords, OTP, biometrics, and security prompts must stay under user control.</p></aside>
+        </section>
+
+        <section class="view" id="view-workflows" aria-labelledby="workflows-title" hidden>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / MEMORY</p><h1 id="workflows-title">Workflows</h1><p class="page-subtitle">Reusable routines are versioned and only reused when context and confidence match.</p></div></div>
+          <div class="empty-state page-empty"><span class="empty-glyph" aria-hidden="true">⌘</span><div><strong>No validated workflows yet.</strong><p>Workflows appear after an execution service verifies a successful task. Nothing is being learned from drafts.</p></div><span class="status-tag neutral">Memory not connected</span></div>
+        </section>
+
+        <section class="view" id="view-activity" aria-labelledby="activity-title" hidden>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / RECORD</p><h1 id="activity-title">Activity</h1><p class="page-subtitle">A local record of draft changes in this browser.</p></div></div>
+          <div class="activity-list" id="activity-list"></div>
+          <div class="empty-state page-empty" id="activity-empty"><span class="empty-glyph" aria-hidden="true">◷</span><div><strong>No activity yet.</strong><p>Adding or removing a draft will appear here. Task execution is not available.</p></div></div>
+        </section>
+
+        <section class="view" id="view-integrations" aria-labelledby="integrations-title" hidden>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">MANAGE / CONNECTIONS</p><h1 id="integrations-title">Integrations</h1><p class="page-subtitle">Connect services through a trusted backend before enabling task execution.</p></div></div>
+          <div class="integration-list">
+            <article class="integration-row"><span class="integration-badge llm-icon">AI</span><div class="integration-copy"><h2>LLM engines</h2><p>Five sequential provider slots with independent endpoint, model, timeout, and retry settings.</p><span class="integration-footnote">Configure keys on a trusted server. Never store them in this browser.</span></div><span class="status-tag offline">Not connected</span></article>
+            <article class="integration-row"><span class="integration-badge device-icon">▦</span><div class="integration-copy"><h2>Android action service</h2><p>Accessibility-based execution requires explicit user enablement and visible safety approvals.</p><span class="integration-footnote">No device service is connected to this website.</span></div><span class="status-tag offline">Not connected</span></article>
+            <article class="integration-row"><span class="integration-badge cloud-icon">⌁</span><div class="integration-copy"><h2>Supabase</h2><p>Optional account sync for settings and user-approved workflow metadata.</p><span class="integration-footnote">Use RLS and never expose a service-role key.</span></div><span class="status-tag neutral">Optional</span></article>
+          </div>
+        </section>
+
+        <footer class="page-footer"><span>SUPERIOA™ <span aria-hidden="true">·</span> PCMDK369™</span><span>Local workspace <i></i> No task execution service connected</span></footer>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
