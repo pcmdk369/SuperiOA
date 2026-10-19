@@ -46,4 +46,43 @@ class ActionValidatorTest {
             ActionValidator.validate(List(51) { ProposedAction(action = "BACK") }),
         )
     }
+
+    @Test
+    fun requiresAReasonForExplicitApprovalAndRejectsOrphanReasons() {
+        assertIs<PlanValidation.Invalid>(
+            ActionValidator.validate(
+                listOf(ProposedAction(action = "TAP", target = "Send", requiresApproval = true)),
+            ),
+        )
+        assertIs<PlanValidation.Invalid>(
+            ActionValidator.validate(
+                listOf(ProposedAction(action = "BACK", approvalReason = "Sensitive action")),
+            ),
+        )
+        assertIs<PlanValidation.Valid>(
+            ActionValidator.validate(
+                listOf(
+                    ProposedAction(
+                        action = "TAP",
+                        target = "Send",
+                        requiresApproval = true,
+                        approvalReason = "Send a message",
+                    ),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun detectsSensitiveActionsIndependentlyOfThePlannerFlag() {
+        val action = ValidatedAction(ActionType.TAP, "Pay now", null, 5_000)
+        assertEquals(
+            "This action may affect a sensitive or external operation.",
+            SafetyGate.approvalReason(action),
+        )
+        assertEquals(
+            null,
+            SafetyGate.approvalReason(ValidatedAction(ActionType.BACK, null, null, 5_000)),
+        )
+    }
 }

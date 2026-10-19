@@ -4,13 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#18201c">
-  <meta name="description" content="SuperiOA task desk for planning and tracking device workflows.">
-  <title>SuperiOA | Task Desk</title>
+  <meta name="description" content="SuperiOA voice-first intelligent operation agent for planning device workflows.">
+  <title>SuperiOA | Voice Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
-  <script src="app.js" defer></script>
+  <script type="module" src="app.js"></script>
 </head>
 <body>
   <div class="app-shell">
@@ -69,14 +69,20 @@
           <div class="overview-grid">
             <div class="primary-column">
               <section class="composer" aria-labelledby="composer-title">
-                <div class="composer-topline"><span class="section-index">01</span><span class="mono-label">NEW TASK</span><span class="composer-hint">Saved as a local draft</span></div>
-                <label class="visually-hidden" for="task-input">Describe a task</label>
-                <textarea id="task-input" maxlength="500" placeholder="What would you like to get done?" rows="3"></textarea>
+                <div class="composer-topline"><span class="section-index">01</span><span class="mono-label">VOICE-TO-VOICE OPERATION</span><span class="composer-hint">Plan · Act · Verify</span></div>
+                <label class="visually-hidden" for="task-input">Describe a task by voice or text</label>
+                <textarea id="task-input" maxlength="2000" placeholder="Tell SuperiOA what you want done. Speak, or type as a fallback." rows="3"></textarea>
                 <div class="composer-footer">
-                  <span class="privacy-inline"><span aria-hidden="true">◇</span> Private to this browser</span>
-                  <button class="button-primary" id="add-task" type="button" disabled><span aria-hidden="true">＋</span> Add to queue</button>
+                  <span class="privacy-inline"><span aria-hidden="true">◇</span> Plans require an authenticated backend</span>
+                  <div class="composer-actions">
+                    <button class="button-outline" id="voice-task" type="button">◉ Talk to SuperiOA</button>
+                    <button class="button-primary" id="plan-task" type="button" disabled>Plan task</button>
+                    <button class="button-outline" id="cancel-plan" type="button" hidden>Cancel planning</button>
+                  </div>
                 </div>
+                <div class="voice-options"><label><input id="voice-output" type="checkbox" checked> Speak the plan aloud</label><button class="text-button" id="save-draft" type="button" disabled>Save as draft</button></div>
                 <div class="composer-notice" id="composer-notice" role="status" aria-live="polite"></div>
+                <section class="plan-result" id="plan-result" aria-live="polite" hidden></section>
               </section>
 
               <section class="queue-section" aria-labelledby="queue-heading">
@@ -110,24 +116,24 @@
               <section class="rail-section">
                 <div class="section-heading compact"><div><p class="mono-label">CONNECTIONS</p><h2>Service status</h2></div></div>
                 <ul class="service-list">
-                  <li><span class="service-icon llm-icon">AI</span><span class="service-name">LLM coordinator<small>Provider not configured</small></span><span class="status-tag offline">Offline</span></li>
+                  <li><span class="service-icon llm-icon">AI</span><span class="service-name">LLM coordinator<small id="llm-status-text">Sign in and configure providers</small></span><span class="status-tag offline" id="llm-status">Offline</span></li>
                   <li><span class="service-icon device-icon">▦</span><span class="service-name">Android device<small>Action service not connected</small></span><span class="status-tag offline">Offline</span></li>
-                  <li><span class="service-icon cloud-icon">⌁</span><span class="service-name">Supabase<small>Optional cloud sync</small></span><span class="status-tag neutral">Optional</span></li>
+                  <li><span class="service-icon cloud-icon">⌁</span><span class="service-name">Supabase<small id="supabase-status-text">Not connected</small></span><span class="status-tag neutral" id="supabase-status">Offline</span></li>
                 </ul>
               </section>
 
               <section class="local-card">
                 <div class="local-card-art" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
                 <p class="mono-label">LOCAL FIRST</p>
-                <strong>Your drafts stay yours.</strong>
-                <p>Nothing leaves this browser. Cloud sync is not connected.</p>
+                <strong>Voice first. Local actions.</strong>
+                <p>Voice is handled by this browser. Task text is sent only to your configured, authenticated backend when you request a plan.</p>
               </section>
             </aside>
           </div>
         </section>
 
         <section class="view" id="view-tasks" aria-labelledby="tasks-title" hidden>
-          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / TASK QUEUE</p><h1 id="tasks-title">Task queue</h1><p class="page-subtitle">Local drafts are saved here. Execution is not connected.</p></div></div>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / TASK QUEUE</p><h1 id="tasks-title">Task queue</h1><p class="page-subtitle">Saved drafts remain in this browser. Planning and execution are separate.</p></div></div>
           <div class="list-toolbar"><label class="search-field"><span aria-hidden="true">⌕</span><input id="task-search" type="search" placeholder="Search drafts" autocomplete="off"></label><span class="toolbar-count" id="all-task-count">0 drafts</span></div>
           <div class="full-task-list" id="full-task-list"></div>
           <div class="empty-state large-empty" id="tasks-empty"><span class="empty-glyph" aria-hidden="true">✳</span><div><strong>No drafts match this view.</strong><p>Try another search or add a new task from Overview.</p></div><button class="button-outline" data-view="overview">Go to overview</button></div>
@@ -170,15 +176,28 @@
         </section>
 
         <section class="view" id="view-integrations" aria-labelledby="integrations-title" hidden>
-          <div class="page-heading slim-heading"><div><p class="eyebrow">MANAGE / CONNECTIONS</p><h1 id="integrations-title">Integrations</h1><p class="page-subtitle">Connect services through a trusted backend before enabling task execution.</p></div></div>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">MANAGE / CONNECTIONS</p><h1 id="integrations-title">Integrations</h1><p class="page-subtitle">Connect to Supabase Auth and the trusted planning function. Provider keys belong only in Edge Function secrets.</p></div></div>
+          <form class="connection-form" id="connection-form">
+            <label>Supabase project URL<input id="supabase-url" type="url" placeholder="https://your-project.supabase.co" autocomplete="url" required></label>
+            <label>Supabase publishable / anon key<input id="supabase-anon-key" type="password" autocomplete="off" required></label>
+            <button class="button-outline" type="submit">Save public project settings</button>
+          </form>
+          <form class="connection-form" id="auth-form">
+            <h2>Sign in to plan tasks</h2>
+            <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
+            <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
+            <div class="composer-actions"><button class="button-primary" type="submit" id="sign-in">Sign in</button><button class="button-outline" type="button" id="sign-out" hidden>Sign out</button></div>
+            <p class="integration-footnote">The access token is kept in memory for this page session. The password is not saved. This form does not create accounts.</p>
+            <div class="composer-notice" id="connection-notice" role="status" aria-live="polite"></div>
+          </form>
           <div class="integration-list">
-            <article class="integration-row"><span class="integration-badge llm-icon">AI</span><div class="integration-copy"><h2>LLM engines</h2><p>Five sequential provider slots with independent endpoint, model, timeout, and retry settings.</p><span class="integration-footnote">Configure keys on a trusted server. Never store them in this browser.</span></div><span class="status-tag offline">Not connected</span></article>
+            <article class="integration-row"><span class="integration-badge llm-icon">AI</span><div class="integration-copy"><h2>LLM engines</h2><p>Five sequential provider slots with independent endpoint, model, timeout, bounded retry and delay settings.</p><span class="integration-footnote">Configure keys as Supabase Edge Function secrets. Never store provider keys in this browser or APK.</span></div><span class="status-tag offline">Backend only</span></article>
             <article class="integration-row"><span class="integration-badge device-icon">▦</span><div class="integration-copy"><h2>Android action service</h2><p>Accessibility-based execution requires explicit user enablement and visible safety approvals.</p><span class="integration-footnote">No device service is connected to this website.</span></div><span class="status-tag offline">Not connected</span></article>
             <article class="integration-row"><span class="integration-badge cloud-icon">⌁</span><div class="integration-copy"><h2>Supabase</h2><p>Optional account sync for settings and user-approved workflow metadata.</p><span class="integration-footnote">Use RLS and never expose a service-role key.</span></div><span class="status-tag neutral">Optional</span></article>
           </div>
         </section>
 
-        <footer class="page-footer"><span>SUPERIOA™ <span aria-hidden="true">·</span> PCMDK369™</span><span>Local workspace <i></i> No task execution service connected</span></footer>
+        <footer class="page-footer"><span>SUPERIOA™ <span aria-hidden="true">·</span> PCMDK369™</span><span>Planning is not execution <i></i> Browser actions remain user-controlled</span></footer>
       </div>
     </main>
   </div>

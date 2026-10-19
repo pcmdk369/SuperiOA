@@ -1,6 +1,9 @@
 .gradle/
 .kotlin/
 **/build/
+dist/
+node_modules/
+.env
 local.properties
 .idea/
 *.iml

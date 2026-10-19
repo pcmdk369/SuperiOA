@@ -1,0 +1,61 @@
+name: SuperiOA CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android tests and APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "9.7.1"
+      - uses: android-actions/setup-android@v3
+      - name: Run core tests and build debug APK
+        run: gradle :core:test :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: superioa-android-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
+  web:
+    name: Web checks and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: superioa-web-dist
+          path: dist/
+          if-no-files-found: error
+
+  backend:
+    name: Supabase Edge Function checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/agent-execute/index.ts
+      - run: deno test supabase/functions/agent-execute/plan.test.ts
+      - run: deno fmt --check supabase/functions/agent-execute/

@@ -15,7 +15,7 @@ class LlmCoordinatorTest {
             calls += config.id
             if (config == first) throw EngineFailure(EngineFailureKind.RETRYABLE, "temporary outage")
             "structured plan"
-        }, retryDelayMs = 0)
+        })
 
         val result = assertIs<LlmResult.Success>(coordinator.generate("open the browser"))
         assertEquals(listOf("engine-1", "engine-1", "engine-2"), calls)
@@ -29,7 +29,7 @@ class LlmCoordinatorTest {
         val coordinator = LlmCoordinator(listOf(first, second), LlmEngineClient { config, _ ->
             calls += config.id
             throw EngineFailure(EngineFailureKind.SECURITY_DENIED, "approval required")
-        }, retryDelayMs = 0)
+        })
 
         assertIs<LlmResult.Failure>(coordinator.generate("send a message"))
         assertEquals(listOf("engine-1"), calls)
@@ -39,7 +39,7 @@ class LlmCoordinatorTest {
     fun redactsCredentialValuesFromProviderErrors() {
         val coordinator = LlmCoordinator(listOf(first, second), LlmEngineClient { _, _ ->
             throw EngineFailure(EngineFailureKind.CONFIGURATION, "api_key=leaked secret-one")
-        }, retryDelayMs = 0)
+        })
 
         val result = assertIs<LlmResult.Failure>(coordinator.generate("plan"))
         assertEquals("api_key=[REDACTED] [REDACTED]", result.attempts.first().reason)
@@ -53,10 +53,26 @@ class LlmCoordinatorTest {
         val coordinator = LlmCoordinator(listOf(disabled, invalid), LlmEngineClient { config, _ ->
             calls += config.id
             "unexpected"
-        }, retryDelayMs = 0)
+        })
 
         val result = assertIs<LlmResult.Failure>(coordinator.generate("plan"))
         assertEquals(emptyList(), calls)
         assertEquals(1, result.attempts.size)
+    }
+
+    @Test
+    fun usesIndependentRetryLimitsAndRejectsInvalidRetryConfiguration() {
+        val calls = mutableListOf<String>()
+        val customizedFirst = first.copy(maxRetries = 0)
+        val coordinator = LlmCoordinator(listOf(customizedFirst, second), LlmEngineClient { config, _ ->
+            calls += config.id
+            if (config == customizedFirst) throw EngineFailure(EngineFailureKind.RETRYABLE, "temporary outage")
+            "structured plan"
+        })
+
+        val result = assertIs<LlmResult.Success>(coordinator.generate("open the browser"))
+        assertEquals(listOf("engine-1", "engine-2"), calls)
+        assertEquals("engine-2", result.engineId)
+        assertEquals(false, first.copy(maxRetries = 3).isUsable())
     }
 }

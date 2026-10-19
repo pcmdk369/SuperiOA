@@ -7,9 +7,12 @@ data class EngineConfig(
     val baseUrl: String,
     val modelId: String,
     val timeoutMs: Int = 20_000,
+    val maxRetries: Int = 1,
+    val retryDelayMs: Long = 250,
 ) {
     fun isUsable(): Boolean = enabled && id.isNotBlank() && apiKey.isNotBlank() &&
-        baseUrl.startsWith("https://") && modelId.isNotBlank() && timeoutMs in 1..60_000
+        baseUrl.startsWith("https://") && modelId.isNotBlank() && timeoutMs in 1..60_000 &&
+        maxRetries in 0..2 && retryDelayMs in 0..5_000
 }
 
 enum class EngineFailureKind { RETRYABLE, CONFIGURATION, CANCELLED, SECURITY_DENIED }
@@ -43,14 +46,7 @@ sealed interface LlmResult {
 class LlmCoordinator(
     private val engines: List<EngineConfig>,
     private val client: LlmEngineClient,
-    private val maxRetriesPerEngine: Int = 1,
-    private val retryDelayMs: Long = 250,
 ) {
-    init {
-        require(maxRetriesPerEngine in 0..2)
-        require(retryDelayMs >= 0)
-    }
-
     fun generate(prompt: String): LlmResult {
         if (prompt.isBlank()) return LlmResult.Failure(emptyList())
         val attempts = mutableListOf<EngineAttempt>()
@@ -62,7 +58,7 @@ class LlmCoordinator(
                 continue
             }
 
-            for (attempt in 1..(maxRetriesPerEngine + 1)) {
+            for (attempt in 1..(engine.maxRetries + 1)) {
                 try {
                     val response = client.generate(engine, prompt)
                     if (response.isBlank()) {
@@ -80,9 +76,9 @@ class LlmCoordinator(
                     }
 
                     attempts += EngineAttempt(engine.id, attempt, SecretRedactor.redact(failure.message.orEmpty(), engines))
-                    if (failure.kind != EngineFailureKind.RETRYABLE || attempt == maxRetriesPerEngine + 1) break
+                    if (failure.kind != EngineFailureKind.RETRYABLE || attempt == engine.maxRetries + 1) break
                     try {
-                        Thread.sleep(retryDelayMs)
+                        Thread.sleep(engine.retryDelayMs)
                     } catch (interrupted: InterruptedException) {
                         Thread.currentThread().interrupt()
                         return LlmResult.Failure(attempts + EngineAttempt(engine.id, attempt, "Request cancelled."))

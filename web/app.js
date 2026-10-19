@@ -1,10 +1,17 @@
+import { AgentClient } from "./agent.js";
+
 const storageKey = "superioa.web.tasks.v1";
 const activityKey = "superioa.web.activity.v1";
 const taskInput = document.querySelector("#task-input");
-const addButton = document.querySelector("#add-task");
+const planButton = document.querySelector("#plan-task");
+const saveDraftButton = document.querySelector("#save-draft");
+const voiceButton = document.querySelector("#voice-task");
 const searchInput = document.querySelector("#task-search");
 const skillSearch = document.querySelector("#skill-search");
 const notice = document.querySelector("#composer-notice");
+const connectionNotice = document.querySelector("#connection-notice");
+const agentClient = new AgentClient();
+let currentPlanRequest = null;
 const skillCatalog = [
   { id: 1, name: "Device Power & Hardware", areas: ["Device"], description: "Power, lock state, charging, hardware controls, and device information." },
   { id: 2, name: "Android Navigation & System UI", areas: ["Device"], description: "Home, back, recents, notifications, quick settings, and system panels." },
@@ -163,9 +170,119 @@ function createTask() {
   save();
   render();
   taskInput.value = "";
-  addButton.disabled = true;
+  saveDraftButton.disabled = true;
   notice.textContent = "Draft saved locally. It has not been sent to an AI provider or executed.";
   taskInput.focus();
+}
+
+function renderPlan(plan, engineId) {
+  const result = document.querySelector("#plan-result");
+  const actions = plan.actions.map((action) => {
+    const description = [action.action, action.target, action.text].filter(Boolean).join(" · ");
+    const approval = action.requiresApproval
+      ? `<p class="approval-note">User approval required: ${escapeHtml(action.approvalReason)}</p>`
+      : "";
+    return `<li><strong>${escapeHtml(description)}</strong>${approval}</li>`;
+  }).join("");
+  const hasApproval = plan.actions.some((action) => action.requiresApproval);
+  result.innerHTML = `<p class="mono-label">PLAN PREVIEW · ${escapeHtml(engineId)}</p>
+    <h2>${escapeHtml(plan.summary)}</h2>
+    <p>Route: ${escapeHtml(plan.domain)} → ${escapeHtml(plan.subAgent)}${plan.preSubAgent ? ` → ${escapeHtml(plan.preSubAgent)}` : ""} → ${escapeHtml(plan.skill)}</p>
+    <p>Expected result: ${escapeHtml(plan.expectedResult)}</p>
+    <ol>${actions}</ol>
+    ${hasApproval ? '<p class="approval-note">One or more steps require explicit user approval before any execution.</p>' : ""}
+    <p class="preview-note">This web app creates a plan preview only. Browser security does not let this page operate other websites or Android apps. Use the Android app for explicitly enabled local Accessibility actions.</p>`;
+  result.hidden = false;
+}
+
+function speak(text) {
+  if (!document.querySelector("#voice-output").checked) return;
+  if (!("speechSynthesis" in window)) {
+    notice.textContent = "This browser does not provide speech output. The plan is available as text.";
+    return;
+  }
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+}
+
+async function planTask() {
+  const task = taskInput.value.trim();
+  if (!task) return;
+  currentPlanRequest = new AbortController();
+  planButton.disabled = true;
+  voiceButton.disabled = true;
+  document.querySelector("#cancel-plan").hidden = false;
+  notice.textContent = "Planning with the authenticated SuperiOA backend…";
+  document.querySelector("#plan-result").hidden = true;
+  try {
+    const { plan, engineId } = await agentClient.plan(task, { signal: currentPlanRequest.signal });
+    renderPlan(plan, engineId);
+    notice.textContent = "Plan ready. No device or browser actions have been executed.";
+    speak(`${plan.summary}. ${plan.actions.length} steps planned. ${plan.expectedResult}`);
+    addActivity(`Planned task: ${plan.summary}`);
+    save();
+    renderActivity();
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      notice.textContent = "Planning canceled. No actions were executed.";
+    } else {
+      notice.textContent = error instanceof Error ? error.message : "Planning failed.";
+    }
+  } finally {
+    currentPlanRequest = null;
+    document.querySelector("#cancel-plan").hidden = true;
+    planButton.disabled = !taskInput.value.trim();
+    voiceButton.disabled = false;
+  }
+}
+
+function updateIntegrationStatus() {
+  const configured = Boolean(agentClient.settings.supabaseUrl && agentClient.settings.anonKey);
+  document.querySelector("#supabase-status").textContent = configured ? "Configured" : "Offline";
+  document.querySelector("#supabase-status").className = `status-tag ${configured ? "ready" : "neutral"}`;
+  document.querySelector("#supabase-status-text").textContent = configured
+    ? "Public project settings saved"
+    : "Not connected";
+  document.querySelector("#llm-status-text").textContent = configured
+    ? (agentClient.isSignedIn ? "Authenticated; providers are server-configured" : "Sign in to call the trusted planner")
+    : "Configure Supabase Auth";
+  document.querySelector("#llm-status").textContent = agentClient.isSignedIn ? "Ready" : "Offline";
+  document.querySelector("#llm-status").className = `status-tag ${agentClient.isSignedIn ? "ready" : "offline"}`;
+  document.querySelector("#supabase-url").value = agentClient.settings.supabaseUrl;
+  document.querySelector("#supabase-anon-key").value = agentClient.settings.anonKey;
+}
+
+function startVoiceTask() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    notice.textContent = "Speech recognition is not supported in this browser. Type your task instead.";
+    return;
+  }
+  const recognition = new SpeechRecognition();
+  recognition.lang = navigator.language || "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+  voiceButton.disabled = true;
+  notice.textContent = "Listening. Speak your task now.";
+  recognition.onresult = (event) => {
+    taskInput.value = event.results[0][0].transcript;
+    saveDraftButton.disabled = !taskInput.value.trim();
+    planButton.disabled = !taskInput.value.trim();
+    planTask();
+  };
+  recognition.onerror = (event) => {
+    notice.textContent = event.error === "not-allowed"
+      ? "Microphone access was denied. Allow it in browser settings or type your task."
+      : `Speech recognition failed (${event.error}). You can type your task instead.`;
+    voiceButton.disabled = false;
+  };
+  recognition.onend = () => { voiceButton.disabled = false; };
+  try {
+    recognition.start();
+  } catch {
+    voiceButton.disabled = false;
+    notice.textContent = "Could not start speech recognition. Type your task instead.";
+  }
 }
 
 function deleteTask(id) {
@@ -185,13 +302,69 @@ document.addEventListener("click", (event) => {
 });
 
 taskInput.addEventListener("input", () => {
-  addButton.disabled = taskInput.value.trim().length === 0;
+  planButton.disabled = taskInput.value.trim().length === 0;
+  saveDraftButton.disabled = taskInput.value.trim().length === 0;
   notice.textContent = "";
 });
 taskInput.addEventListener("keydown", (event) => {
-  if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !addButton.disabled) createTask();
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter" && !planButton.disabled) planTask();
 });
-addButton.addEventListener("click", createTask);
+planButton.addEventListener("click", planTask);
+voiceButton.addEventListener("click", startVoiceTask);
+saveDraftButton.addEventListener("click", createTask);
+document.querySelector("#connection-form").addEventListener("submit", (event) => {
+  event.preventDefault();
+  try {
+    agentClient.saveSettings(
+      document.querySelector("#supabase-url").value,
+      document.querySelector("#supabase-anon-key").value,
+    );
+    connectionNotice.textContent = "Supabase public project settings saved in this browser.";
+    updateIntegrationStatus();
+  } catch (error) {
+    connectionNotice.textContent = error instanceof Error ? error.message : "Could not save Supabase settings.";
+  }
+});
+document.querySelector("#auth-form").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = document.querySelector("#auth-email").value.trim();
+  const passwordField = document.querySelector("#auth-password");
+  const password = passwordField.value;
+  document.querySelector("#sign-in").disabled = true;
+  try {
+    if (document.querySelector("#supabase-url").value !== agentClient.settings.supabaseUrl ||
+      document.querySelector("#supabase-anon-key").value !== agentClient.settings.anonKey) {
+      agentClient.saveSettings(
+        document.querySelector("#supabase-url").value,
+        document.querySelector("#supabase-anon-key").value,
+      );
+    }
+    await agentClient.signIn(email, password);
+    connectionNotice.textContent = `Signed in as ${email}. The session is held in memory for this page only.`;
+    document.querySelector("#sign-out").hidden = false;
+    document.querySelector("#llm-status").textContent = "Ready";
+    document.querySelector("#llm-status").className = "status-tag ready";
+    document.querySelector("#llm-status-text").textContent = "Authenticated; providers remain server-configured";
+    updateIntegrationStatus();
+    document.querySelector("#llm-status").textContent = "Ready";
+    document.querySelector("#llm-status").className = "status-tag ready";
+    document.querySelector("#llm-status-text").textContent = "Authenticated; providers remain server-configured";
+  } catch (error) {
+    connectionNotice.textContent = error instanceof Error ? error.message : "Sign-in failed.";
+  } finally {
+    passwordField.value = "";
+    document.querySelector("#sign-in").disabled = false;
+  }
+});
+document.querySelector("#sign-out").addEventListener("click", () => {
+  agentClient.signOut();
+  document.querySelector("#sign-out").hidden = true;
+  document.querySelector("#llm-status").textContent = "Offline";
+  document.querySelector("#llm-status").className = "status-tag offline";
+  connectionNotice.textContent = "Signed out.";
+  updateIntegrationStatus();
+});
+document.querySelector("#cancel-plan").addEventListener("click", () => currentPlanRequest?.abort());
 searchInput.addEventListener("input", renderTasks);
 skillSearch.addEventListener("input", renderSkills);
 document.querySelectorAll("[data-skill-filter]").forEach((button) => {
@@ -209,4 +382,5 @@ document.querySelectorAll("[data-skill-filter]").forEach((button) => {
 document.querySelector("#date-stamp").textContent = new Date().toLocaleDateString(undefined, {
   weekday: "short", month: "short", day: "numeric", year: "numeric",
 });
+updateIntegrationStatus();
 render();

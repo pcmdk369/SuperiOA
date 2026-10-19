@@ -46,14 +46,48 @@ object ActionValidator {
             if (type !in targetRequired && candidate.target != null) {
                 return PlanValidation.Invalid("Action ${index + 1} does not accept a target.")
             }
+            if (candidate.requiresApproval && candidate.approvalReason.isNullOrBlank()) {
+                return PlanValidation.Invalid("Action ${index + 1} requires an approval reason.")
+            }
+            if (!candidate.requiresApproval && candidate.approvalReason != null) {
+                return PlanValidation.Invalid("Action ${index + 1} has an unexpected approval reason.")
+            }
+            if (candidate.approvalReason != null && candidate.approvalReason.length > MAX_TARGET_LENGTH) {
+                return PlanValidation.Invalid("Action ${index + 1} has an approval reason that is too long.")
+            }
 
             val timeout = candidate.timeoutMs ?: DEFAULT_TIMEOUT_MS
             if (timeout !in 1..MAX_TIMEOUT_MS) {
                 return PlanValidation.Invalid("Action ${index + 1} has a timeout outside the allowed range.")
             }
-            validated += ValidatedAction(type, candidate.target, candidate.text, timeout)
+            validated += ValidatedAction(
+                type,
+                candidate.target,
+                candidate.text,
+                timeout,
+                candidate.requiresApproval,
+                candidate.approvalReason,
+            )
         }
 
         return PlanValidation.Valid(ActionPlan(validated))
+    }
+}
+
+object SafetyGate {
+    private val sensitiveAction = Regex(
+        """\b(send|publish|post|delete|remove|purchase|buy|checkout|pay|payment|transfer|password|passcode|otp|captcha|biometric|security|confirm)\b""",
+        RegexOption.IGNORE_CASE,
+    )
+
+    fun approvalReason(action: ValidatedAction): String? {
+        if (action.requiresApproval) return action.approvalReason ?: "This action was marked as sensitive."
+        if (action.type == ActionType.REQUEST_USER) return "The task requires your input."
+        val context = listOfNotNull(action.target, action.text).joinToString(" ")
+        return if (sensitiveAction.containsMatchIn(context)) {
+            "This action may affect a sensitive or external operation."
+        } else {
+            null
+        }
     }
 }

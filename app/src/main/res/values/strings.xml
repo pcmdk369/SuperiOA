@@ -1,0 +1,3 @@
+<resources>
+    <string name="accessibility_service_description">Read accessible UI labels and perform user-approved SuperiOA actions while the service is enabled.</string>
+</resources>

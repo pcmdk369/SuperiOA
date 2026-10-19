@@ -1,0 +1,11 @@
+{
+  "name": "superioa-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "lint": "node --check web/app.js && node --check web/agent.js",
+    "test": "node --test web/*.test.js"
+  }
+}
