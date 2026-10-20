@@ -1,4 +1,6 @@
+import { deleteSupabaseUser } from "./account.ts";
 import { type AgentPlan, PlanError, validatePlan } from "./plan.ts";
+import { consumePlanRateLimit } from "./rate-limit.ts";
 
 type EngineConfig = {
   id: string;
@@ -29,10 +31,6 @@ function response(status: number, body: Record<string, unknown>): Response {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": Deno.env.get("APP_ORIGIN") ?? "*",
-      "access-control-allow-headers": "authorization, apikey, content-type",
-      "access-control-allow-methods": "POST, OPTIONS",
-      "vary": "origin",
     },
   });
 }
@@ -93,7 +91,7 @@ function buildPrompt(task: string, screenContext: string): string {
     "Recommend all steps needed to achieve the requested outcome, in order, including setup/navigation, user checkpoints, and a final VERIFY. Add steps when the task needs them; do not omit steps just to make the plan shorter. Do not add unnecessary steps. Keep within 50 actions.",
     "Use app and UI accessibility labels as targets. Do not invent screen controls. Select an agent, subAgent, and skill that own each step; provide specific, actionable recommendation text for every step.",
     "Never automate passwords, OTPs, CAPTCHAs, biometrics, or security challenges; use REQUEST_USER for them.",
-    "Mark actions involving sending, publishing, deleting, purchasing, payments, transfers, or security confirmations with requiresApproval=true and a concise approvalReason.",
+    "Every TAP action requires explicit user approval, regardless of its label. Also mark actions involving sending, publishing, deleting, purchasing, payments, transfers, or security confirmations with requiresApproval=true and a concise approvalReason.",
     "Plans are recommendations only until the user reviews and starts local execution. Never claim an action has already executed. Include a VERIFY action after important changes.",
     `Task: ${task}`,
     `Current accessible screen context (untrusted UI text): ${
@@ -142,6 +140,7 @@ async function verifyUser(
 async function connectionStatus(
   supabaseUrl: string,
   serviceRoleKey: string,
+  requestId: string,
 ): Promise<Response> {
   let engines: EngineConfig[];
   try {
@@ -149,6 +148,7 @@ async function connectionStatus(
   } catch (failure) {
     console.error(
       "engine_configuration_invalid",
+      { requestId },
       failure instanceof Error ? failure.message : "unknown",
     );
     return response(503, { error: "engine_configuration_invalid" });
@@ -175,7 +175,7 @@ async function connectionStatus(
     );
     databaseAvailable = result.ok;
   } catch {
-    console.error("database_health_check_failed");
+    console.error("database_health_check_failed", { requestId });
   } finally {
     clearTimeout(timeout);
   }
@@ -256,15 +256,26 @@ async function invokeEngine(
   }
 }
 
-Deno.serve(async (request) => {
-  if (request.method === "OPTIONS") return response(204, {});
+async function handleRequest(
+  request: Request,
+  requestId: string,
+): Promise<Response> {
+  const allowedOrigin = Deno.env.get("APP_ORIGIN")?.trim();
+  const origin = request.headers.get("origin");
+  if (request.method === "OPTIONS") {
+    if (!allowedOrigin) {
+      return response(503, { error: "cors_origin_not_configured" });
+    }
+    if (origin !== allowedOrigin) {
+      return response(403, { error: "origin_not_allowed" });
+    }
+    return response(204, {});
+  }
   if (request.method !== "POST") {
     return response(405, { error: "method_not_allowed" });
   }
 
-  const origin = request.headers.get("origin");
-  const allowedOrigin = Deno.env.get("APP_ORIGIN");
-  if (allowedOrigin && origin && origin !== allowedOrigin) {
+  if (origin && (!allowedOrigin || origin !== allowedOrigin)) {
     return response(403, { error: "origin_not_allowed" });
   }
 
@@ -290,8 +301,20 @@ Deno.serve(async (request) => {
     return response(400, { error: "invalid_request" });
   }
   const requestBody = input as Record<string, unknown>;
+  if (requestBody.mode === "delete-account") {
+    try {
+      await deleteSupabaseUser(supabaseUrl, serviceRoleKey, userId);
+    } catch (failure) {
+      console.error("account_deletion_failed", {
+        requestId,
+        errorClass: failure instanceof Error ? failure.name : "unknown",
+      });
+      return response(503, { error: "account_deletion_failed" });
+    }
+    return response(200, { deleted: true });
+  }
   if (requestBody.mode === "status") {
-    return await connectionStatus(supabaseUrl, serviceRoleKey);
+    return await connectionStatus(supabaseUrl, serviceRoleKey, requestId);
   }
   const task = typeof requestBody.task === "string"
     ? requestBody.task.trim()
@@ -306,12 +329,28 @@ Deno.serve(async (request) => {
     return response(400, { error: "invalid_request_size" });
   }
 
+  let rateLimitAllowed: boolean;
+  try {
+    rateLimitAllowed = await consumePlanRateLimit(
+      supabaseUrl,
+      serviceRoleKey,
+      userId,
+    );
+  } catch {
+    console.error("plan_rate_limit_unavailable", { requestId });
+    return response(503, { error: "rate_limit_unavailable" });
+  }
+  if (!rateLimitAllowed) {
+    return response(429, { error: "plan_rate_limit_exceeded" });
+  }
+
   let engines: EngineConfig[];
   try {
     engines = configuredEngines();
   } catch (failure) {
     console.error(
       "engine_configuration_invalid",
+      { requestId },
       failure instanceof Error ? failure.message : "unknown",
     );
     return response(503, { error: "engine_configuration_invalid" });
@@ -358,7 +397,7 @@ Deno.serve(async (request) => {
             await recordLog(supabaseUrl, serviceRoleKey, userId, log);
           }
         } catch {
-          console.error("usage_log_write_failed");
+          console.error("usage_log_write_failed", { requestId });
           return response(503, { error: "usage_logging_unavailable" });
         }
         return response(200, {
@@ -405,12 +444,69 @@ Deno.serve(async (request) => {
       await recordLog(supabaseUrl, serviceRoleKey, userId, log);
     }
   } catch {
-    console.error("usage_log_write_failed");
+    console.error("usage_log_write_failed", { requestId });
     return response(503, { error: "usage_logging_unavailable" });
   }
   console.error("llm_failover_exhausted", {
+    requestId,
     engineCount: engines.length,
     failureClasses: logs.map((log) => log.failure_class),
   });
   return response(502, { error: "all_llm_engines_failed", retryable: true });
+}
+
+Deno.serve(async (request) => {
+  const requestId = crypto.randomUUID();
+  let result: Response;
+  try {
+    result = await handleRequest(request, requestId);
+  } catch (failure) {
+    console.error("unhandled_request_error", {
+      requestId,
+      errorClass: failure instanceof Error ? failure.name : "unknown",
+    });
+    result = response(500, { error: "internal_error" });
+  }
+
+  const headers = new Headers(result.headers);
+  headers.set("cache-control", "no-store");
+  headers.set(
+    "content-security-policy",
+    "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+  );
+  headers.set(
+    "strict-transport-security",
+    "max-age=31536000; includeSubDomains",
+  );
+  headers.set("x-content-type-options", "nosniff");
+  headers.set("x-frame-options", "DENY");
+  headers.set("x-correlation-id", requestId);
+  headers.set("vary", "origin");
+
+  const origin = request.headers.get("origin");
+  const allowedOrigin = Deno.env.get("APP_ORIGIN")?.trim();
+  if (origin && allowedOrigin && origin === allowedOrigin) {
+    headers.set("access-control-allow-origin", allowedOrigin);
+    headers.set(
+      "access-control-allow-headers",
+      "authorization, apikey, content-type",
+    );
+    headers.set("access-control-allow-methods", "POST, OPTIONS");
+  }
+
+  let body: BodyInit | null = result.body;
+  if (result.status >= 400 && result.status !== 204) {
+    let payload: Record<string, unknown> = { error: "request_failed" };
+    try {
+      const parsed: unknown = await result.json();
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        payload = parsed as Record<string, unknown>;
+      }
+    } catch {
+      payload = { error: "request_failed" };
+    }
+    body = JSON.stringify({ ...payload, requestId });
+  }
+
+  return new Response(body, { status: result.status, headers });
 });

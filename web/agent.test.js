@@ -35,7 +35,22 @@ const validPlan = {
 };
 
 test("accepts a structured plan from the coordinator", () => {
-  assert.equal(validateAgentPlan(validPlan), validPlan);
+  assert.deepEqual(validateAgentPlan(validPlan), validPlan);
+});
+
+test("requires approval for taps regardless of the UI label", () => {
+  const plan = validateAgentPlan({
+    ...validPlan,
+    actions: [
+      { ...validPlan.actions[0], action: "TAP", target: "Place order" },
+      validPlan.actions[1],
+    ],
+  });
+  assert.equal(plan.actions[0].requiresApproval, true);
+  assert.equal(
+    plan.actions[0].approvalReason,
+    "Confirm this screen action before it runs.",
+  );
 });
 
 test("rejects unsupported or oversized plans", () => {
@@ -78,6 +93,52 @@ test("refuses insecure Supabase endpoints", () => {
 test("requires an authenticated session before planning", async () => {
   const client = new AgentClient();
   await assert.rejects(client.plan("Open Chrome"), /Sign in/);
+});
+
+test("deletes an authenticated account through the trusted backend", async () => {
+  const client = new AgentClient();
+  client.settings = {
+    supabaseUrl: "https://project.supabase.co",
+    anonKey: "public-key",
+  };
+  client.accessToken = "session-token";
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url, options };
+    return Response.json({ deleted: true });
+  };
+  try {
+    await client.deleteAccount();
+    assert.equal(request.url, "https://project.supabase.co/functions/v1/agent-execute");
+    assert.equal(request.options.headers.authorization, "Bearer session-token");
+    assert.deepEqual(JSON.parse(request.options.body), { mode: "delete-account" });
+    assert.equal(client.isSignedIn, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("explains planning rate limits and fails closed when the backend is unavailable", async () => {
+  const client = new AgentClient();
+  client.settings = {
+    supabaseUrl: "https://project.supabase.co",
+    anonKey: "public-key",
+  };
+  client.accessToken = "session-token";
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json(
+    { error: "plan_rate_limit_exceeded" },
+    { status: 429 },
+  );
+  try {
+    await assert.rejects(
+      client.plan("Open Chrome"),
+      /Too many planning requests/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("checks Supabase Auth without requiring a user session", async () => {

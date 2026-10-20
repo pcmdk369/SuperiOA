@@ -111,6 +111,25 @@ Deno.test("requires user approval for sensitive actions", () => {
   }
 });
 
+Deno.test("requires approval for every tap regardless of its target label", () => {
+  for (const target of ["Place order", "Continue", "Next"]) {
+    const plan = validatePlan({
+      ...validPlan,
+      actions: [
+        { ...validPlan.actions[0], action: "TAP", target },
+        validPlan.actions[1],
+      ],
+    });
+    if (
+      !plan.actions[0].requiresApproval ||
+      plan.actions[0].approvalReason !==
+        "Confirm this screen action before it runs."
+    ) {
+      throw new Error(`The ${target} tap was not approval-gated.`);
+    }
+  }
+});
+
 Deno.test("never plans automated password entry", () => {
   let rejected = false;
   try {

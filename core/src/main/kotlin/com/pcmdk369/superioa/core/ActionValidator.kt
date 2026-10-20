@@ -116,8 +116,9 @@ object SafetyGate {
     )
 
     fun approvalReason(action: ValidatedAction): String? {
-        if (action.requiresApproval) return action.approvalReason ?: "This action was marked as sensitive."
         if (action.type == ActionType.REQUEST_USER) return "The task requires your input."
+        if (action.type == ActionType.TAP) return "Confirm this screen action before it runs."
+        if (action.requiresApproval) return action.approvalReason ?: "This action was marked as sensitive."
         val context = listOfNotNull(action.target, action.text).joinToString(" ")
         return if (sensitiveAction.containsMatchIn(context)) {
             "This action may affect a sensitive or external operation."

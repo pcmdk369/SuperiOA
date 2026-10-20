@@ -86,6 +86,7 @@ private data class CheckpointUi(
     val title: String,
     val message: String,
     val actionDescription: String,
+    val confirmLabel: String = "Continue",
     val decide: (Boolean) -> Unit,
 )
 
@@ -154,6 +155,44 @@ private fun SuperiOAApp() {
         preferences.edit()
             .putString("history", JSONArray().apply { history.take(50).forEach(::put) }.toString())
             .apply()
+    }
+
+    fun deleteAccount() {
+        val token = accessToken
+        if (busy || token.isNullOrBlank()) {
+            feedback = "Sign in before deleting your account."
+            return
+        }
+        val url = projectUrl
+        val publicKey = anonKey
+        busy = true
+        feedback = "Deleting your account and its server-side data…"
+        taskFuture = executor.submit {
+            try {
+                AgentBackend.deleteAccount(url, publicKey, token)
+                activity.runOnUiThread {
+                    preferences.edit().clear().apply()
+                    history.clear()
+                    accessToken = null
+                    authEmail = ""
+                    authPassword = ""
+                    projectUrl = ""
+                    anonKey = ""
+                    taskText = ""
+                    pendingPlan = null
+                    pendingTask = ""
+                    pendingContext = "unknown"
+                    shareScreenContext = false
+                    busy = false
+                    feedback = "Your account and this app's locally stored data were deleted."
+                }
+            } catch (failure: Exception) {
+                activity.runOnUiThread {
+                    busy = false
+                    feedback = failure.message ?: "Account deletion could not be confirmed. Your local data was kept."
+                }
+            }
+        }
     }
 
     fun askUser(title: String, message: String, actionDescription: String): Boolean {
@@ -446,6 +485,7 @@ private fun SuperiOAApp() {
                         email = authEmail,
                         password = authPassword,
                         signedIn = accessToken != null,
+                        busy = busy,
                         accessibilityEnabled = accessibilityEnabled,
                         feedback = feedback,
                         onProjectUrlChange = { projectUrl = it },
@@ -495,6 +535,17 @@ private fun SuperiOAApp() {
                             accessToken = null
                             feedback = "Signed out. The in-memory session was cleared."
                         },
+                        onDeleteAccount = {
+                            checkpoint = CheckpointUi(
+                                title = "Delete account",
+                                message = "This permanently deletes your Supabase account and server-side usage records, then removes locally stored task history, workflows, and app settings. It cannot erase prompts already retained by configured AI or speech providers.",
+                                actionDescription = "Delete the account and its data",
+                                confirmLabel = "Delete account",
+                            ) { accepted ->
+                                checkpoint = null
+                                if (accepted) deleteAccount()
+                            }
+                        },
                         onRefreshAccessibility = {
                             accessibilityEnabled = SuperiOAAccessibilityService.isEnabled(activity)
                             feedback = if (accessibilityEnabled) "Accessibility service is enabled."
@@ -516,7 +567,7 @@ private fun SuperiOAApp() {
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { active.decide(true) }) { Text("Continue") }
+                    TextButton(onClick = { active.decide(true) }) { Text(active.confirmLabel) }
                 },
                 dismissButton = {
                     TextButton(onClick = { active.decide(false) }) { Text("Stop task") }
@@ -632,7 +683,7 @@ private fun RunScreen(
     }
     HorizontalDivider()
     Spacer(Modifier.height(12.dp))
-    Text("The coordinator plans once. Android performs supported actions locally, checks results, and pauses for your approval at sensitive or authentication checkpoints.", style = MaterialTheme.typography.bodySmall)
+    Text("The coordinator plans once. Android performs supported actions locally, checks results, and pauses for your approval before every screen tap and at authentication checkpoints.", style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
@@ -661,6 +712,7 @@ private fun SettingsScreen(
     email: String,
     password: String,
     signedIn: Boolean,
+    busy: Boolean,
     accessibilityEnabled: Boolean,
     feedback: String?,
     onProjectUrlChange: (String) -> Unit,
@@ -670,6 +722,7 @@ private fun SettingsScreen(
     onSaveProject: () -> Unit,
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
     onRefreshAccessibility: () -> Unit,
 ) {
     OutlinedTextField(
@@ -715,6 +768,16 @@ private fun SettingsScreen(
     Spacer(Modifier.height(8.dp))
     Button(onClick = if (signedIn) onSignOut else onSignIn, modifier = Modifier.fillMaxWidth()) {
         Text(if (signedIn) "Sign out" else "Sign in")
+    }
+    if (signedIn) {
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = onDeleteAccount,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Delete account and data")
+        }
     }
     Text(
         if (signedIn) "Signed in for this app session. The access token is held in memory only."

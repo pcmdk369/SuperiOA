@@ -109,8 +109,16 @@ class ActionValidatorTest {
     fun detectsSensitiveActionsIndependentlyOfThePlannerFlag() {
         val action = recommendedValidated(ActionType.TAP, "Pay now")
         assertEquals(
-            "This action may affect a sensitive or external operation.",
+            "Confirm this screen action before it runs.",
             SafetyGate.approvalReason(action),
+        )
+        assertEquals(
+            "Confirm this screen action before it runs.",
+            SafetyGate.approvalReason(recommendedValidated(ActionType.TAP, "Place order")),
+        )
+        assertEquals(
+            "Confirm this screen action before it runs.",
+            SafetyGate.approvalReason(recommendedValidated(ActionType.TAP, "Continue")),
         )
         assertEquals(
             null,

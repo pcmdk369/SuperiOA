@@ -215,7 +215,8 @@ export function validatePlan(value: unknown): AgentPlan {
       throw new PlanError("manual_security_checkpoint_required");
     }
 
-    const approved = Boolean(action.requiresApproval) ||
+    const approved = action.action === "TAP" ||
+      Boolean(action.requiresApproval) ||
       sensitiveContext.test(
         `${String(action.target ?? "")} ${String(action.text ?? "")}`,
       );
@@ -234,7 +235,9 @@ export function validatePlan(value: unknown): AgentPlan {
       ...(approved
         ? {
           requiresApproval: true,
-          approvalReason: typeof action.approvalReason === "string"
+          approvalReason: action.action === "TAP"
+            ? "Confirm this screen action before it runs."
+            : typeof action.approvalReason === "string"
             ? action.approvalReason
             : "This action may affect a sensitive or external operation.",
         }

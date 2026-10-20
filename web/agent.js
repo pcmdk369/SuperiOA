@@ -61,7 +61,8 @@ export function validateAgentPlan(plan) {
     if (action.requiresApproval !== undefined && typeof action.requiresApproval !== "boolean") {
       throw new Error("The planner returned an invalid approval flag.");
     }
-    if (action.approvalReason !== undefined && typeof action.approvalReason !== "string") {
+    if (action.approvalReason !== undefined &&
+      (typeof action.approvalReason !== "string" || action.approvalReason.length > 200)) {
       throw new Error("The planner returned an invalid approval reason.");
     }
     if (action.requiresApproval && (!action.approvalReason || !action.approvalReason.trim())) {
@@ -82,7 +83,16 @@ export function validateAgentPlan(plan) {
   if (!plan.actions.some((action) => action.action === "VERIFY")) {
     throw new Error("The planner did not include a verification step.");
   }
-  return plan;
+  return {
+    ...plan,
+    actions: plan.actions.map((action) => action.action === "TAP"
+      ? {
+        ...action,
+        requiresApproval: true,
+        approvalReason: "Confirm this screen action before it runs.",
+      }
+      : action),
+  };
 }
 
 export class AgentClient {
@@ -145,8 +155,41 @@ export class AgentClient {
     this.accessToken = null;
   }
 
+  clearSettings() {
+    localStorage.removeItem(settingsKey);
+    this.settings = { supabaseUrl: "", anonKey: "" };
+  }
+
   get isSignedIn() {
     return this.accessToken !== null;
+  }
+
+  async deleteAccount() {
+    const { supabaseUrl, anonKey } = this.settings;
+    if (!this.accessToken) throw new Error("Sign in before deleting your account.");
+    if (!supabaseUrl || !anonKey) throw new Error("Save your Supabase settings first.");
+    let result;
+    try {
+      result = await fetch(`${supabaseUrl}/functions/v1/agent-execute`, {
+        method: "POST",
+        headers: {
+          apikey: anonKey,
+          authorization: `Bearer ${this.accessToken}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ mode: "delete-account" }),
+      });
+    } catch {
+      throw new Error("Could not reach the account service. Your account was not deleted.");
+    }
+    const body = await result.json().catch(() => ({}));
+    if (!result.ok || body.deleted !== true) {
+      if (result.status === 401) this.signOut();
+      throw new Error(body.error === "account_deletion_failed"
+        ? "Account deletion could not be confirmed. Check your account before retrying."
+        : "The account service could not confirm deletion.");
+    }
+    this.signOut();
   }
 
   async checkConnections() {
@@ -238,6 +281,8 @@ export class AgentClient {
         authentication_required: "Sign in to Supabase before asking SuperiOA to plan.",
         invalid_session: "Your session expired. Sign in again.",
         no_llm_engines_configured: "No LLM engine is configured on the trusted backend.",
+        plan_rate_limit_exceeded: "Too many planning requests. Wait one minute and try again.",
+        rate_limit_unavailable: "The request limit could not be checked. Planning is temporarily unavailable.",
         all_llm_engines_failed: "All configured LLM engines failed. Check their server-side configuration and retry.",
         usage_logging_unavailable: "Usage logging is unavailable. The plan was not returned.",
         backend_not_configured: "The SuperiOA backend is not configured yet.",

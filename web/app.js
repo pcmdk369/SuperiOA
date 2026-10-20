@@ -50,21 +50,22 @@ const skillCatalog = [
 ];
 let selectedSkillArea = "All";
 
-function readList(key) {
+function clearPersistedDrafts() {
   try {
-    const value = JSON.parse(localStorage.getItem(key) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(activityKey);
+  } catch (error) {
+    throw new Error("Could not clear previously saved drafts from this browser.", { cause: error });
   }
 }
 
-let tasks = readList(storageKey).filter((task) => task && typeof task.id === "string" && typeof task.text === "string");
-let activity = readList(activityKey).filter((entry) => entry && typeof entry.text === "string");
+let tasks = [];
+let activity = [];
 
-function save() {
-  localStorage.setItem(storageKey, JSON.stringify(tasks));
-  localStorage.setItem(activityKey, JSON.stringify(activity.slice(0, 40)));
+try {
+  clearPersistedDrafts();
+} catch (error) {
+  notice.textContent = error.message;
 }
 
 function escapeHtml(value) {
@@ -167,11 +168,10 @@ function createTask() {
   const task = { id: crypto.randomUUID(), text, createdAt: Date.now() };
   tasks.unshift(task);
   addActivity(`Saved draft: ${text}`);
-  save();
   render();
   taskInput.value = "";
   taskInput.dispatchEvent(new Event("input", { bubbles: true }));
-  notice.textContent = "Draft saved locally. It has not been sent to an AI provider or executed.";
+  notice.textContent = "Draft saved in memory for this tab only. It has not been sent to an AI provider or executed.";
   taskInput.focus();
 }
 
@@ -227,7 +227,6 @@ async function planTask() {
     notice.textContent = "Plan ready. No device or browser actions have been executed.";
     speak(`${plan.summary}. ${plan.actions.length} steps planned. ${plan.expectedResult}`);
     addActivity(`Planned task: ${plan.summary}`);
-    save();
     renderActivity();
   } catch (error) {
     if (error?.name === "AbortError") {
@@ -296,7 +295,6 @@ function deleteTask(id) {
   if (!task) return;
   tasks = tasks.filter((item) => item.id !== id);
   addActivity(`Removed draft: ${task.text}`);
-  save();
   render();
 }
 
@@ -395,6 +393,7 @@ document.querySelector("#auth-form").addEventListener("submit", async (event) =>
     await agentClient.signIn(email, password);
     connectionNotice.textContent = `Signed in as ${email}. The session is held in memory for this page only.`;
     document.querySelector("#sign-out").hidden = false;
+    document.querySelector("#delete-account").hidden = false;
     updateIntegrationStatus();
   } catch (error) {
     connectionNotice.textContent = error instanceof Error ? error.message : "Sign-in failed.";
@@ -406,10 +405,56 @@ document.querySelector("#auth-form").addEventListener("submit", async (event) =>
 document.querySelector("#sign-out").addEventListener("click", () => {
   agentClient.signOut();
   document.querySelector("#sign-out").hidden = true;
+  document.querySelector("#delete-account").hidden = true;
   document.querySelector("#llm-status").textContent = "Offline";
   document.querySelector("#llm-status").className = "status-tag offline";
   connectionNotice.textContent = "Signed out.";
   updateIntegrationStatus();
+});
+document.querySelector("#delete-account").addEventListener("click", async () => {
+  if (!agentClient.isSignedIn) return;
+  const confirmed = window.confirm(
+    "Permanently delete your Supabase account and its server-side usage records? This also clears SuperiOA drafts, activity, and saved connection settings from this browser. It cannot erase prompts already retained by configured AI providers.",
+  );
+  if (!confirmed) return;
+
+  const button = document.querySelector("#delete-account");
+  button.disabled = true;
+  try {
+    await agentClient.deleteAccount();
+    tasks = [];
+    activity = [];
+    taskInput.value = "";
+    taskInput.dispatchEvent(new Event("input", { bubbles: true }));
+    document.querySelector("#auth-email").value = "";
+    document.querySelector("#auth-password").value = "";
+    document.querySelector("#sign-out").hidden = true;
+    button.hidden = true;
+    render();
+    let localCleanupSucceeded = true;
+    try {
+      clearPersistedDrafts();
+    } catch {
+      localCleanupSucceeded = false;
+    }
+    try {
+      agentClient.clearSettings();
+    } catch {
+      localCleanupSucceeded = false;
+    }
+    document.querySelector("#supabase-url").value = "";
+    document.querySelector("#supabase-anon-key").value = "";
+    connectionNotice.textContent = localCleanupSucceeded
+      ? "Your account and this browser's SuperiOA data were deleted."
+      : "Your account was deleted, but some browser settings could not be cleared. Clear this site's browser data manually.";
+    updateIntegrationStatus();
+  } catch (error) {
+    connectionNotice.textContent = error instanceof Error
+      ? error.message
+      : "Account deletion failed. Check the service and try again.";
+  } finally {
+    button.disabled = false;
+  }
 });
 document.querySelector("#cancel-plan").addEventListener("click", () => currentPlanRequest?.abort());
 searchInput.addEventListener("input", renderTasks);

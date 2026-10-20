@@ -62,6 +62,23 @@ object AgentBackend {
         )
     }
 
+    fun deleteAccount(projectUrl: String, anonKey: String, accessToken: String) {
+        val baseUrl = validatedBaseUrl(projectUrl)
+        val response = request(
+            "$baseUrl/functions/v1/agent-execute",
+            "POST",
+            mapOf(
+                "apikey" to anonKey,
+                "Authorization" to "Bearer $accessToken",
+                "Content-Type" to "application/json",
+            ),
+            JSONObject().put("mode", "delete-account").toString(),
+        )
+        if (!JSONObject(response).optBoolean("deleted")) {
+            throw IllegalStateException("The account deletion was not confirmed by the backend.")
+        }
+    }
+
     fun parsePlan(json: JSONObject): AgentPlan {
         val proposed = mutableListOf<ProposedAction>()
         val actions: JSONArray = json.getJSONArray("actions")
@@ -161,8 +178,11 @@ object AgentBackend {
             "authentication_required" -> "Sign in to Supabase before planning."
             "invalid_session" -> "Your Supabase session expired. Sign in again."
             "no_llm_engines_configured" -> "No LLM engines are configured on the trusted backend."
+            "plan_rate_limit_exceeded" -> "Too many planning requests. Wait one minute and try again."
+            "rate_limit_unavailable" -> "The request limit could not be checked. Planning is temporarily unavailable."
             "all_llm_engines_failed" -> "All configured LLM engines failed. Check server settings and retry."
             "usage_logging_unavailable" -> "Usage logging is unavailable. The plan was not returned."
+            "account_deletion_failed" -> "Account deletion could not be confirmed. Local data was kept; check your account before retrying."
             "backend_not_configured" -> "The SuperiOA backend is not configured yet."
             else -> when (status) {
                 400 -> "The backend rejected the task or returned an invalid plan."

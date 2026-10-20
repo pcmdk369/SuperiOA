@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#18201c">
   <meta name="description" content="SuperiOA voice-first intelligent operation agent for planning device workflows.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; upgrade-insecure-requests">
   <title>SuperiOA | Voice Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -41,7 +42,7 @@
       </nav>
 
       <div class="sidebar-bottom">
-        <div class="privacy-note"><span class="privacy-symbol" aria-hidden="true">◇</span><span><strong>Stored on this device</strong><small>Drafts stay in this browser.</small></span></div>
+        <div class="privacy-note"><span class="privacy-symbol" aria-hidden="true">◇</span><span><strong>In-page only</strong><small>Drafts clear when this tab closes.</small></span></div>
         <div class="profile-row"><span class="profile-avatar">P</span><span>PCMDK369<small>Personal plan</small></span><button class="icon-button" aria-label="Account options" title="Account options">···</button></div>
       </div>
     </aside>
@@ -86,7 +87,7 @@
                     <button class="button-outline" id="cancel-plan" type="button" hidden>Cancel planning</button>
                   </div>
                 </div>
-                <div class="voice-options"><label><input id="voice-output" type="checkbox" checked> Speak the plan aloud</label><span class="keyboard-hint">⌘ / Ctrl + Enter to plan</span><button class="text-button" id="save-draft" type="button" disabled>Save as draft</button></div>
+                <div class="voice-options"><label><input id="voice-output" type="checkbox" checked> Speak the plan aloud</label><span class="keyboard-hint">⌘ / Ctrl + Enter to plan</span><button class="text-button" id="save-draft" type="button" disabled>Save in this tab</button></div>
                 <div class="composer-notice" id="composer-notice" role="status" aria-live="polite"></div>
                 <section class="plan-result" id="plan-result" aria-live="polite" hidden></section>
               </section>
@@ -176,7 +177,7 @@
         </section>
 
         <section class="view" id="view-activity" aria-labelledby="activity-title" hidden>
-          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / RECORD</p><h1 id="activity-title">Activity</h1><p class="page-subtitle">A local record of draft changes in this browser.</p></div></div>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">WORKSPACE / RECORD</p><h1 id="activity-title">Activity</h1><p class="page-subtitle">A temporary record of draft changes in this tab. It is not saved to browser storage.</p></div></div>
           <div class="activity-list" id="activity-list"></div>
           <div class="empty-state page-empty" id="activity-empty"><span class="empty-glyph" aria-hidden="true">◷</span><div><strong>No activity yet.</strong><p>Adding or removing a draft will appear here. Task execution is not available.</p></div></div>
         </section>
@@ -193,7 +194,7 @@
             <h2>Sign in to plan tasks</h2>
             <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
             <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
-            <div class="composer-actions"><button class="button-primary" type="submit" id="sign-in">Sign in</button><button class="button-outline" type="button" id="sign-out" hidden>Sign out</button></div>
+            <div class="composer-actions"><button class="button-primary" type="submit" id="sign-in">Sign in</button><button class="button-outline" type="button" id="sign-out" hidden>Sign out</button><button class="button-outline" type="button" id="delete-account" hidden>Delete account and data</button></div>
             <p class="integration-footnote">The access token is kept in memory for this page session. The password is not saved. This form does not create accounts.</p>
             <div class="composer-notice" id="connection-notice" role="status" aria-live="polite"></div>
             <section class="connection-health" id="connection-health" aria-live="polite" hidden></section>
