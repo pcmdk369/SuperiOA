@@ -12,9 +12,9 @@ import java.security.MessageDigest
 class LocalWorkflowMemory(private val preferences: SharedPreferences) {
     fun find(task: String, appContext: String): AgentPlanResult? {
         val record = read(task) ?: return null
-        val steps = record.plan.actions.actions
+        val steps = record.plan.plan.actions.actions
         val workflow = WorkflowRecord(
-            id = record.taskId,
+            id = record.plan.taskId,
             version = record.version,
             appContext = record.appContext,
             steps = steps,
@@ -70,7 +70,7 @@ class LocalWorkflowMemory(private val preferences: SharedPreferences) {
                 engineId = json.getString("engineId"),
                 plan = plan,
             )
-            Record(
+            return Record(
                 plan = planResult,
                 appContext = json.getString("appContext"),
                 version = json.getInt("version"),
