@@ -5,8 +5,9 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-web.mjs",
-    "lint": "node --check web/app.js && node --check web/agent.js",
-    "test": "node --test web/*.test.js",
-    "start": "node server.js"
+    "lint": "node --check web/app.js && node --check web/agent.js && node --check server/index.js",
+    "dev": "node --env-file=.env server/index.js",
+    "start": "node server/index.js",
+    "test": "node --test web/*.test.js server/*.test.js"
   }
 }

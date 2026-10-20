@@ -5,6 +5,7 @@ services:
     plan: free
     buildCommand: npm ci && npm run build
     startCommand: npm start
+    healthCheckPath: /api/session
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,6 +13,24 @@ services:
         value: 10000
       - key: APP_ORIGIN
         sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: AUTH_LOGIN_1_MAIL
+        value: superintelligentcore@gmail.com
+      - key: AUTH_LOGIN_2_MAIL
+        value: support.pcmdkai@gmail.com
+      - key: AUTH_1_PASSWORD
+        sync: false
+      - key: AUTH_2_PASSWORD
+        sync: false
+      - key: AUTH_TOKEN_1_KEY
+        generateValue: true
+      - key: AUTH_TOKEN_2_KEY
+        generateValue: true
     headers:
       - path: /*
         name: X-Content-Type-Options

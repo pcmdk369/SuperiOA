@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#18201c">
   <meta name="description" content="SuperiOA voice-first intelligent operation agent for planning device workflows.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; upgrade-insecure-requests">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; upgrade-insecure-requests">
   <title>SuperiOA | Voice Agent</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -38,12 +38,12 @@
 
       <p class="nav-label nav-label-lower">Manage</p>
       <nav class="main-nav">
-        <button class="nav-item" data-view="integrations"><span class="nav-icon" aria-hidden="true">⊙</span>Integrations<span class="connection-dot" aria-label="Not connected"></span></button>
+        <button class="nav-item" data-view="integrations"><span class="nav-icon" aria-hidden="true">⊙</span>Admin Login<span class="connection-dot" aria-label="Not connected"></span></button>
       </nav>
 
       <div class="sidebar-bottom">
         <div class="privacy-note"><span class="privacy-symbol" aria-hidden="true">◇</span><span><strong>In-page only</strong><small>Drafts clear when this tab closes.</small></span></div>
-        <div class="profile-row"><span class="profile-avatar">P</span><span>PCMDK369<small>Personal plan</small></span><button class="icon-button" aria-label="Account options" title="Account options">···</button></div>
+        <div class="profile-row"><span class="profile-avatar">A</span><span>Administrator<small>Admin workspace</small></span></div>
       </div>
     </aside>
 
@@ -123,9 +123,9 @@
               <section class="rail-section">
                 <div class="section-heading compact"><div><p class="mono-label">CONNECTIONS</p><h2>Service status</h2></div></div>
                 <ul class="service-list">
-                  <li><span class="service-icon llm-icon">AI</span><span class="service-name">LLM coordinator<small id="llm-status-text">Sign in and configure providers</small></span><span class="status-tag offline" id="llm-status">Offline</span></li>
+                  <li><span class="service-icon llm-icon">AI</span><span class="service-name">LLM coordinator<small id="llm-status-text">Admin sign-in required</small></span><span class="status-tag offline" id="llm-status">Offline</span></li>
                   <li><span class="service-icon device-icon">▦</span><span class="service-name">Android device<small>Action service not connected</small></span><span class="status-tag offline">Offline</span></li>
-                  <li><span class="service-icon cloud-icon">⌁</span><span class="service-name">Supabase<small id="supabase-status-text">Not connected</small></span><span class="status-tag neutral" id="supabase-status">Offline</span></li>
+                  <li><span class="service-icon cloud-icon">⌁</span><span class="service-name">Supabase<small id="supabase-status-text">Server-side integration</small></span><span class="status-tag neutral" id="supabase-status">Private</span></li>
                 </ul>
               </section>
 
@@ -133,7 +133,7 @@
                 <div class="local-card-art" aria-hidden="true"><span></span><span></span><span></span><i></i></div>
                 <p class="mono-label">LOCAL FIRST</p>
                 <strong>Voice first. Local actions.</strong>
-                <p>Voice is handled by this browser. Task text is sent only to your configured, authenticated backend when you request a plan.</p>
+                <p>Voice is handled by this browser. Task text is sent to the authenticated SuperiOA server only when you request a plan.</p>
               </section>
             </aside>
           </div>
@@ -183,26 +183,20 @@
         </section>
 
         <section class="view" id="view-integrations" aria-labelledby="integrations-title" hidden>
-          <div class="page-heading slim-heading"><div><p class="eyebrow">MANAGE / CONNECTIONS</p><h1 id="integrations-title">Integrations</h1><p class="page-subtitle">Connect to Supabase Auth and the trusted planning function. Provider keys belong only in Edge Function secrets.</p></div></div>
-          <form class="connection-form" id="connection-form">
-            <label>Supabase project URL<input id="supabase-url" type="url" placeholder="https://your-project.supabase.co" autocomplete="url" required></label>
-            <label>Supabase publishable / anon key<input id="supabase-anon-key" type="password" autocomplete="off" required></label>
-            <button class="button-outline" type="submit">Save public project settings</button>
-            <button class="button-outline" type="button" id="test-connections">Test API connections</button>
-          </form>
+          <div class="page-heading slim-heading"><div><p class="eyebrow">MANAGE / CONNECTIONS</p><h1 id="integrations-title">System status</h1><p class="page-subtitle">Service configuration and provider credentials are managed securely on the server.</p></div></div>
           <form class="connection-form" id="auth-form">
-            <h2>Sign in to plan tasks</h2>
-            <label>Email<input id="auth-email" type="email" autocomplete="username" required></label>
-            <label>Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
-            <div class="composer-actions"><button class="button-primary" type="submit" id="sign-in">Sign in</button><button class="button-outline" type="button" id="sign-out" hidden>Sign out</button><button class="button-outline" type="button" id="delete-account" hidden>Delete account and data</button></div>
-            <p class="integration-footnote">The access token is kept in memory for this page session. The password is not saved. This form does not create accounts.</p>
+            <h2 id="admin-login-title">Admin Login</h2>
+            <label id="admin-email-label">Email<input id="auth-email" type="email" autocomplete="username" required></label>
+            <label id="admin-password-label">Password<input id="auth-password" type="password" autocomplete="current-password" required></label>
+            <div class="composer-actions"><button class="button-primary" type="submit" id="sign-in">Sign in</button><button class="button-outline" type="button" id="sign-out" hidden>Sign out</button><button class="button-outline" type="button" id="test-connections" hidden>Check service status</button></div>
+            <p class="integration-footnote">Only authorized administrators can sign in. Sessions use a secure, HttpOnly cookie; passwords and Supabase tokens are never stored in this page.</p>
             <div class="composer-notice" id="connection-notice" role="status" aria-live="polite"></div>
             <section class="connection-health" id="connection-health" aria-live="polite" hidden></section>
           </form>
           <div class="integration-list">
-            <article class="integration-row"><span class="integration-badge llm-icon">AI</span><div class="integration-copy"><h2>LLM engines</h2><p>Five sequential provider slots with independent endpoint, model, timeout, bounded retry and delay settings.</p><span class="integration-footnote">Configure keys as Supabase Edge Function secrets. Never store provider keys in this browser or APK.</span></div><span class="status-tag offline">Backend only</span></article>
+            <article class="integration-row"><span class="integration-badge llm-icon">AI</span><div class="integration-copy"><h2>LLM engines</h2><p>Five sequential provider slots with independent endpoint, model, timeout, bounded retry and delay settings.</p><span class="integration-footnote">Provider credentials are stored server-side and are never sent to this website.</span></div><span class="status-tag offline">Server only</span></article>
             <article class="integration-row"><span class="integration-badge device-icon">▦</span><div class="integration-copy"><h2>Android action service</h2><p>Accessibility-based execution requires explicit user enablement and visible safety approvals.</p><span class="integration-footnote">No device service is connected to this website.</span></div><span class="status-tag offline">Not connected</span></article>
-            <article class="integration-row"><span class="integration-badge cloud-icon">⌁</span><div class="integration-copy"><h2>Supabase</h2><p>Optional account sync for settings and user-approved workflow metadata.</p><span class="integration-footnote">Use RLS and never expose a service-role key.</span></div><span class="status-tag neutral">Optional</span></article>
+            <article class="integration-row"><span class="integration-badge cloud-icon">⌁</span><div class="integration-copy"><h2>Supabase</h2><p>Trusted authentication, planning, and usage logging are handled by server-side integrations.</p><span class="integration-footnote">Project URLs and keys are not configurable from the website.</span></div><span class="status-tag neutral">Server only</span></article>
           </div>
         </section>
 
