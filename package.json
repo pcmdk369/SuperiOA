@@ -6,6 +6,7 @@
   "scripts": {
     "build": "node scripts/build-web.mjs",
     "lint": "node --check web/app.js && node --check web/agent.js",
-    "test": "node --test web/*.test.js"
+    "test": "node --test web/*.test.js",
+    "start": "node server.js"
   }
 }
