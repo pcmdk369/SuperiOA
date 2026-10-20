@@ -215,6 +215,12 @@ function speak(text) {
 async function planTask() {
   const task = taskInput.value.trim();
   if (!task) return;
+  if (!agentClient.isSignedIn) {
+    notice.textContent = "Sign in with an admin account before requesting a plan.";
+    setView("integrations");
+    document.querySelector("#auth-email").focus();
+    return;
+  }
   currentPlanRequest = new AbortController();
   planButton.disabled = true;
   voiceButton.disabled = true;
@@ -237,25 +243,31 @@ async function planTask() {
   } finally {
     currentPlanRequest = null;
     document.querySelector("#cancel-plan").hidden = true;
-    planButton.disabled = !taskInput.value.trim();
+    planButton.disabled = !taskInput.value.trim() || !agentClient.isSignedIn;
     voiceButton.disabled = false;
+    updateIntegrationStatus();
   }
 }
 
 function updateIntegrationStatus() {
-  const configured = Boolean(agentClient.settings.supabaseUrl && agentClient.settings.anonKey);
-  document.querySelector("#supabase-status").textContent = configured ? "Configured" : "Offline";
-  document.querySelector("#supabase-status").className = `status-tag ${configured ? "ready" : "neutral"}`;
-  document.querySelector("#supabase-status-text").textContent = configured
-    ? "Public project settings saved"
-    : "Not connected";
-  document.querySelector("#llm-status-text").textContent = configured
-    ? (agentClient.isSignedIn ? "Authenticated; test backend readiness" : "Sign in to check backend readiness")
-    : "Configure Supabase Auth";
-  document.querySelector("#llm-status").textContent = agentClient.isSignedIn ? "Auth only" : "Offline";
-  document.querySelector("#llm-status").className = `status-tag ${agentClient.isSignedIn ? "neutral" : "offline"}`;
-  document.querySelector("#supabase-url").value = agentClient.settings.supabaseUrl;
-  document.querySelector("#supabase-anon-key").value = agentClient.settings.anonKey;
+  const signedIn = agentClient.isSignedIn;
+  document.querySelector("#supabase-status").textContent = signedIn ? "Connected" : "Private";
+  document.querySelector("#supabase-status").className = `status-tag ${signedIn ? "ready" : "neutral"}`;
+  document.querySelector("#supabase-status-text").textContent = signedIn
+    ? "Authenticated server integration"
+    : "Server-side integration";
+  document.querySelector("#llm-status-text").textContent = signedIn
+    ? `Admin session: ${agentClient.email}`
+    : "Admin sign-in required";
+  document.querySelector("#llm-status").textContent = signedIn ? "Available" : "Offline";
+  document.querySelector("#llm-status").className = `status-tag ${signedIn ? "ready" : "offline"}`;
+  document.querySelector("#admin-login-title").hidden = signedIn;
+  document.querySelector("#admin-email-label").hidden = signedIn;
+  document.querySelector("#admin-password-label").hidden = signedIn;
+  document.querySelector("#sign-in").hidden = signedIn;
+  document.querySelector("#sign-out").hidden = !signedIn;
+  document.querySelector("#test-connections").hidden = !signedIn;
+  planButton.disabled = !taskInput.value.trim() || !signedIn;
 }
 
 function startVoiceTask() {
@@ -306,7 +318,7 @@ document.addEventListener("click", (event) => {
 });
 
 taskInput.addEventListener("input", () => {
-  planButton.disabled = taskInput.value.trim().length === 0;
+  planButton.disabled = taskInput.value.trim().length === 0 || !agentClient.isSignedIn;
   saveDraftButton.disabled = taskInput.value.trim().length === 0;
   document.querySelector("#task-character-count").textContent = `${taskInput.value.length.toLocaleString()} / 2,000`;
   notice.textContent = "";
@@ -324,56 +336,31 @@ document.querySelectorAll("[data-prompt]").forEach((button) => {
 planButton.addEventListener("click", planTask);
 voiceButton.addEventListener("click", startVoiceTask);
 saveDraftButton.addEventListener("click", createTask);
-document.querySelector("#connection-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  try {
-    agentClient.saveSettings(
-      document.querySelector("#supabase-url").value,
-      document.querySelector("#supabase-anon-key").value,
-    );
-    connectionNotice.textContent = "Supabase public project settings saved in this browser.";
-    updateIntegrationStatus();
-  } catch (error) {
-    connectionNotice.textContent = error instanceof Error ? error.message : "Could not save Supabase settings.";
-  }
-});
 document.querySelector("#test-connections").addEventListener("click", async () => {
   const button = document.querySelector("#test-connections");
   const health = document.querySelector("#connection-health");
   button.disabled = true;
-  button.textContent = "Checking connections…";
+  button.textContent = "Checking status…";
   health.hidden = true;
   try {
-    if (document.querySelector("#supabase-url").value !== agentClient.settings.supabaseUrl ||
-      document.querySelector("#supabase-anon-key").value !== agentClient.settings.anonKey) {
-      agentClient.saveSettings(
-        document.querySelector("#supabase-url").value,
-        document.querySelector("#supabase-anon-key").value,
-      );
-      updateIntegrationStatus();
-    }
-    const connections = await agentClient.checkConnections();
+    const backend = await agentClient.checkConnections();
     const lines = [
-      `<li><span>Supabase Auth</span><strong class="health-ready">Reachable</strong></li>`,
+      `<li><span>Admin session</span><strong class="health-ready">Authenticated</strong></li>`,
     ];
-    if (!connections.backend) {
-      lines.push(`<li><span>SuperiOA backend</span><strong class="health-pending">Sign in to check</strong></li>`);
-      lines.push(`<li><span>LLM providers and usage database</span><strong class="health-pending">Backend check requires sign-in</strong></li>`);
-    } else {
-      const { databaseAvailable, enabledEngineSlots, configuredEngineSlots } = connections.backend;
-      lines.push(`<li><span>SuperiOA backend</span><strong class="${connections.backend.status === "ready" ? "health-ready" : "health-pending"}">${connections.backend.status === "ready" ? "Reachable" : "Degraded"}</strong></li>`);
-      lines.push(`<li><span>Usage database</span><strong class="${databaseAvailable ? "health-ready" : "health-error"}">${databaseAvailable ? "Available" : "Unavailable"}</strong></li>`);
-      lines.push(`<li><span>LLM engine slots</span><strong class="${configuredEngineSlots > 0 ? "health-ready" : "health-pending"}">${configuredEngineSlots} configured · ${enabledEngineSlots} enabled</strong></li>`);
-      lines.push(`<li class="health-footnote">Provider connectivity is not tested here; checking providers requires a planning request and may incur usage charges.</li>`);
-    }
+    const { databaseAvailable, enabledEngineSlots, configuredEngineSlots } = backend;
+    lines.push(`<li><span>SuperiOA backend</span><strong class="${backend.status === "ready" ? "health-ready" : "health-pending"}">${backend.status === "ready" ? "Reachable" : "Degraded"}</strong></li>`);
+    lines.push(`<li><span>Usage database</span><strong class="${databaseAvailable ? "health-ready" : "health-error"}">${databaseAvailable ? "Available" : "Unavailable"}</strong></li>`);
+    lines.push(`<li><span>LLM engine slots</span><strong class="${configuredEngineSlots > 0 ? "health-ready" : "health-pending"}">${configuredEngineSlots} configured · ${enabledEngineSlots} enabled</strong></li>`);
+    lines.push(`<li class="health-footnote">Provider connectivity is not tested here; a planning request may incur usage charges.</li>`);
     health.innerHTML = `<p class="mono-label">CONNECTION CHECK</p><ul>${lines.join("")}</ul>`;
     health.hidden = false;
-    connectionNotice.textContent = "Connection check complete. No provider request was sent.";
+    connectionNotice.textContent = "Service status check complete. No provider request was sent.";
   } catch (error) {
     connectionNotice.textContent = error instanceof Error ? error.message : "Could not check API connections.";
   } finally {
     button.disabled = false;
-    button.textContent = "Test API connections";
+    button.textContent = "Check service status";
+    updateIntegrationStatus();
   }
 });
 document.querySelector("#auth-form").addEventListener("submit", async (event) => {
@@ -383,77 +370,28 @@ document.querySelector("#auth-form").addEventListener("submit", async (event) =>
   const password = passwordField.value;
   document.querySelector("#sign-in").disabled = true;
   try {
-    if (document.querySelector("#supabase-url").value !== agentClient.settings.supabaseUrl ||
-      document.querySelector("#supabase-anon-key").value !== agentClient.settings.anonKey) {
-      agentClient.saveSettings(
-        document.querySelector("#supabase-url").value,
-        document.querySelector("#supabase-anon-key").value,
-      );
-    }
     await agentClient.signIn(email, password);
-    connectionNotice.textContent = `Signed in as ${email}. The session is held in memory for this page only.`;
-    document.querySelector("#sign-out").hidden = false;
-    document.querySelector("#delete-account").hidden = false;
+    connectionNotice.textContent = `Admin session started for ${agentClient.email}.`;
     updateIntegrationStatus();
   } catch (error) {
     connectionNotice.textContent = error instanceof Error ? error.message : "Sign-in failed.";
   } finally {
     passwordField.value = "";
     document.querySelector("#sign-in").disabled = false;
+    updateIntegrationStatus();
   }
 });
-document.querySelector("#sign-out").addEventListener("click", () => {
-  agentClient.signOut();
-  document.querySelector("#sign-out").hidden = true;
-  document.querySelector("#delete-account").hidden = true;
-  document.querySelector("#llm-status").textContent = "Offline";
-  document.querySelector("#llm-status").className = "status-tag offline";
-  connectionNotice.textContent = "Signed out.";
-  updateIntegrationStatus();
-});
-document.querySelector("#delete-account").addEventListener("click", async () => {
-  if (!agentClient.isSignedIn) return;
-  const confirmed = window.confirm(
-    "Permanently delete your Supabase account and its server-side usage records? This also clears SuperiOA drafts, activity, and saved connection settings from this browser. It cannot erase prompts already retained by configured AI providers.",
-  );
-  if (!confirmed) return;
-
-  const button = document.querySelector("#delete-account");
+document.querySelector("#sign-out").addEventListener("click", async () => {
+  const button = document.querySelector("#sign-out");
   button.disabled = true;
   try {
-    await agentClient.deleteAccount();
-    tasks = [];
-    activity = [];
-    taskInput.value = "";
-    taskInput.dispatchEvent(new Event("input", { bubbles: true }));
-    document.querySelector("#auth-email").value = "";
-    document.querySelector("#auth-password").value = "";
-    document.querySelector("#sign-out").hidden = true;
-    button.hidden = true;
-    render();
-    let localCleanupSucceeded = true;
-    try {
-      clearPersistedDrafts();
-    } catch {
-      localCleanupSucceeded = false;
-    }
-    try {
-      agentClient.clearSettings();
-    } catch {
-      localCleanupSucceeded = false;
-    }
-    document.querySelector("#supabase-url").value = "";
-    document.querySelector("#supabase-anon-key").value = "";
-    connectionNotice.textContent = localCleanupSucceeded
-      ? "Your account and this browser's SuperiOA data were deleted."
-      : "Your account was deleted, but some browser settings could not be cleared. Clear this site's browser data manually.";
-    updateIntegrationStatus();
+    await agentClient.signOut();
+    connectionNotice.textContent = "Signed out.";
   } catch (error) {
-    connectionNotice.textContent = error instanceof Error
-      ? error.message
-      : "Account deletion failed. Check the service and try again.";
+    connectionNotice.textContent = error instanceof Error ? error.message : "Sign-out failed.";
   } finally {
     button.disabled = false;
+    updateIntegrationStatus();
   }
 });
 document.querySelector("#cancel-plan").addEventListener("click", () => currentPlanRequest?.abort());
@@ -476,3 +414,8 @@ document.querySelector("#date-stamp").textContent = new Date().toLocaleDateStrin
 });
 updateIntegrationStatus();
 render();
+agentClient.restoreSession()
+  .then(updateIntegrationStatus)
+  .catch((error) => {
+    connectionNotice.textContent = error instanceof Error ? error.message : "Could not restore the admin session.";
+  });

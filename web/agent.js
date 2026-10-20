@@ -1,6 +1,5 @@
-const settingsKey = "superioa.web.connection.v1";
 const supportedActions = new Set([
-  "OPEN_APP", "BACK", "HOME", "RECENTS", "TAP", "TYPE", "SCROLL", "SWIPE",
+  "OPEN_APP", "OPEN_URL", "BACK", "HOME", "RECENTS", "TAP", "TYPE", "SCROLL", "SWIPE",
   "COPY", "PASTE", "READ_UI", "WAIT", "VERIFY", "RETRY", "ABORT", "REQUEST_USER",
 ]);
 
@@ -23,7 +22,7 @@ export function validateAgentPlan(plan) {
   if (!Array.isArray(plan.actions) || plan.actions.length < 1 || plan.actions.length > 50) {
     throw new Error("The planner returned an invalid action list.");
   }
-  const targetRequired = new Set(["OPEN_APP", "TAP", "TYPE", "SCROLL", "SWIPE", "VERIFY"]);
+  const targetRequired = new Set(["OPEN_APP", "OPEN_URL", "TAP", "TYPE", "SCROLL", "SWIPE", "VERIFY"]);
   const textRequired = new Set(["TYPE", "REQUEST_USER"]);
   for (const action of plan.actions) {
     if (!action || typeof action !== "object" || !supportedActions.has(action.action)) {
@@ -97,198 +96,77 @@ export function validateAgentPlan(plan) {
 
 export class AgentClient {
   constructor() {
-    this.accessToken = null;
-    this.settings = this.readSettings();
+    this.email = null;
   }
 
-  readSettings() {
-    try {
-      const settings = JSON.parse(localStorage.getItem(settingsKey) || "{}");
-      return {
-        supabaseUrl: typeof settings.supabaseUrl === "string" ? settings.supabaseUrl.replace(/\/+$/, "") : "",
-        anonKey: typeof settings.anonKey === "string" ? settings.anonKey : "",
-      };
-    } catch {
-      return { supabaseUrl: "", anonKey: "" };
-    }
-  }
-
-  saveSettings(supabaseUrl, anonKey) {
-    const normalizedUrl = supabaseUrl.trim().replace(/\/+$/, "");
-    let parsed;
-    try {
-      parsed = new URL(normalizedUrl);
-    } catch {
-      throw new Error("Enter a valid Supabase project URL.");
-    }
-    if (parsed.protocol !== "https:" && parsed.hostname !== "localhost") {
-      throw new Error("Supabase must use HTTPS.");
-    }
-    if (!anonKey.trim()) throw new Error("Enter the Supabase publishable/anon key.");
-    this.settings = { supabaseUrl: normalizedUrl, anonKey: anonKey.trim() };
-    localStorage.setItem(settingsKey, JSON.stringify(this.settings));
-  }
-
-  async signIn(email, password) {
-    const { supabaseUrl, anonKey } = this.settings;
-    if (!supabaseUrl || !anonKey) throw new Error("Save your Supabase URL and public key first.");
+  async request(path, body, { signal } = {}) {
     let result;
     try {
-      result = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
-        method: "POST",
-        headers: { apikey: anonKey, "content-type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-    } catch {
-      throw new Error("Could not reach Supabase Auth. Check the URL and your connection.");
-    }
-    const body = await result.json().catch(() => ({}));
-    if (!result.ok || typeof body.access_token !== "string") {
-      throw new Error(result.status === 400 || result.status === 401
-        ? "Sign-in failed. Check the email and password."
-        : "Supabase sign-in is unavailable. Check the project configuration.");
-    }
-    this.accessToken = body.access_token;
-  }
-
-  signOut() {
-    this.accessToken = null;
-  }
-
-  clearSettings() {
-    localStorage.removeItem(settingsKey);
-    this.settings = { supabaseUrl: "", anonKey: "" };
-  }
-
-  get isSignedIn() {
-    return this.accessToken !== null;
-  }
-
-  async deleteAccount() {
-    const { supabaseUrl, anonKey } = this.settings;
-    if (!this.accessToken) throw new Error("Sign in before deleting your account.");
-    if (!supabaseUrl || !anonKey) throw new Error("Save your Supabase settings first.");
-    let result;
-    try {
-      result = await fetch(`${supabaseUrl}/functions/v1/agent-execute`, {
-        method: "POST",
-        headers: {
-          apikey: anonKey,
-          authorization: `Bearer ${this.accessToken}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ mode: "delete-account" }),
-      });
-    } catch {
-      throw new Error("Could not reach the account service. Your account was not deleted.");
-    }
-    const body = await result.json().catch(() => ({}));
-    if (!result.ok || body.deleted !== true) {
-      if (result.status === 401) this.signOut();
-      throw new Error(body.error === "account_deletion_failed"
-        ? "Account deletion could not be confirmed. Check your account before retrying."
-        : "The account service could not confirm deletion.");
-    }
-    this.signOut();
-  }
-
-  async checkConnections() {
-    const { supabaseUrl, anonKey } = this.settings;
-    if (!supabaseUrl || !anonKey) {
-      throw new Error("Save your Supabase URL and public key first.");
-    }
-    let authResponse;
-    try {
-      authResponse = await fetch(`${supabaseUrl}/auth/v1/settings`, {
-        headers: { apikey: anonKey },
-      });
-    } catch {
-      throw new Error("Could not reach Supabase Auth. Check the project URL and network.");
-    }
-    if (!authResponse.ok) {
-      throw new Error(authResponse.status === 401 || authResponse.status === 403
-        ? "Supabase rejected the public key. Check the project URL and key."
-        : `Supabase Auth health check failed (HTTP ${authResponse.status}).`);
-    }
-
-    if (!this.accessToken) {
-      return { supabase: true, backend: null };
-    }
-
-    let backendResponse;
-    try {
-      backendResponse = await fetch(`${supabaseUrl}/functions/v1/agent-execute`, {
-        method: "POST",
-        headers: {
-          apikey: anonKey,
-          authorization: `Bearer ${this.accessToken}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ mode: "status" }),
-      });
-    } catch {
-      throw new Error("Could not reach the SuperiOA backend. Check the Edge Function deployment and network.");
-    }
-    const backend = await backendResponse.json().catch(() => ({}));
-    if (backendResponse.status === 401) {
-      this.signOut();
-      throw new Error("Your session expired. Sign in again before checking backend connections.");
-    }
-    if (!backendResponse.ok) {
-      const message = {
-        404: "The SuperiOA Edge Function is not deployed.",
-        503: backend.error === "engine_configuration_invalid"
-          ? "An enabled LLM engine has invalid server settings."
-          : "The SuperiOA backend or its Supabase configuration is unavailable.",
-      }[backendResponse.status] ||
-        `The SuperiOA backend health check failed (HTTP ${backendResponse.status}).`;
-      throw new Error(message);
-    }
-    if (
-      !backend || !["ready", "degraded"].includes(backend.status) ||
-      typeof backend.databaseAvailable !== "boolean" ||
-      !Number.isInteger(backend.enabledEngineSlots) ||
-      !Number.isInteger(backend.configuredEngineSlots)
-    ) {
-      throw new Error("The SuperiOA backend returned an invalid health status.");
-    }
-    return { supabase: true, backend };
-  }
-
-  async plan(task, { signal } = {}) {
-    const { supabaseUrl, anonKey } = this.settings;
-    if (!this.accessToken) throw new Error("Sign in to Supabase before asking SuperiOA to plan.");
-    let result;
-    try {
-      result = await fetch(`${supabaseUrl}/functions/v1/agent-execute`, {
-        method: "POST",
-        signal,
-        headers: {
-          apikey: anonKey,
-          authorization: `Bearer ${this.accessToken}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ task, screenContext: "", mode: "plan" }),
+      result = await fetch(path, {
+        method: body === undefined ? "GET" : "POST",
+        credentials: "same-origin",
+        headers: body === undefined ? {} : { "content-type": "application/json" },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(signal ? { signal } : {}),
       });
     } catch (error) {
       if (error?.name === "AbortError") throw error;
-      throw new Error("Could not reach the SuperiOA backend. Check your network and Edge Function deployment.");
+      throw new Error("Could not reach the SuperiOA service. Check your connection.");
     }
-    const body = await result.json().catch(() => ({}));
+    const response = await result.json().catch(() => ({}));
     if (!result.ok) {
-      if (result.status === 401) this.signOut();
+      if (result.status === 401 && path !== "/api/login") this.email = null;
       const messages = {
-        authentication_required: "Sign in to Supabase before asking SuperiOA to plan.",
-        invalid_session: "Your session expired. Sign in again.",
+        invalid_credentials: "Admin sign-in failed. Check the email and password.",
+        login_rate_limited: "Too many sign-in attempts. Wait 15 minutes and try again.",
+        authentication_required: "Sign in with an admin account before requesting a plan.",
+        session_expired: "Your session expired. Sign in again.",
+        agent_rate_limited: "Too many requests. Wait a minute and try again.",
         no_llm_engines_configured: "No LLM engine is configured on the trusted backend.",
         plan_rate_limit_exceeded: "Too many planning requests. Wait one minute and try again.",
         rate_limit_unavailable: "The request limit could not be checked. Planning is temporarily unavailable.",
         all_llm_engines_failed: "All configured LLM engines failed. Check their server-side configuration and retry.",
         usage_logging_unavailable: "Usage logging is unavailable. The plan was not returned.",
         backend_not_configured: "The SuperiOA backend is not configured yet.",
+        server_not_configured: "The SuperiOA service is not configured yet.",
       };
-      throw new Error(messages[body.error] || "The SuperiOA backend rejected the planning request.");
+      throw new Error(messages[response.error] || "The SuperiOA service rejected the request.");
     }
+    return response;
+  }
+
+  async signIn(email, password) {
+    const result = await this.request("/api/login", { email, password });
+    if (typeof result.email !== "string") throw new Error("The service returned an invalid sign-in response.");
+    this.email = result.email;
+  }
+
+  async restoreSession() {
+    const result = await this.request("/api/session");
+    this.email = result.authenticated && typeof result.email === "string" ? result.email : null;
+    return this.email;
+  }
+
+  async signOut() {
+    try {
+      await this.request("/api/logout", {});
+    } finally {
+      this.email = null;
+    }
+  }
+
+  get isSignedIn() {
+    return this.email !== null;
+  }
+
+  async checkConnections() {
+    if (!this.isSignedIn) throw new Error("Sign in with an admin account to check service status.");
+    return this.request("/api/agent-execute", { mode: "status" });
+  }
+
+  async plan(task, { signal } = {}) {
+    if (!this.isSignedIn) throw new Error("Sign in with an admin account before requesting a plan.");
+    const body = await this.request("/api/agent-execute", { task }, { signal });
     return {
       plan: validateAgentPlan(body.plan),
       engineId: typeof body.engineId === "string" ? body.engineId : "unknown",

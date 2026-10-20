@@ -47,163 +47,92 @@ test("requires approval for taps regardless of the UI label", () => {
     ],
   });
   assert.equal(plan.actions[0].requiresApproval, true);
-  assert.equal(
-    plan.actions[0].approvalReason,
-    "Confirm this screen action before it runs.",
-  );
+  assert.equal(plan.actions[0].approvalReason, "Confirm this screen action before it runs.");
 });
 
-test("rejects unsupported or oversized plans", () => {
+test("rejects unsupported, incomplete, or oversized plans", () => {
   assert.throws(() => validateAgentPlan({ ...validPlan, actions: [{ ...validPlan.actions[0], action: "RUN_SHELL" }] }));
   assert.throws(() => validateAgentPlan({ ...validPlan, actions: Array(51).fill(validPlan.actions[0]) }));
   assert.throws(() => validateAgentPlan({ ...validPlan, actions: [{ ...validPlan.actions[0], action: "BACK" }] }));
 });
 
-test("requires an approval reason for explicitly gated actions", () => {
+test("rejects missing approval reasons and authentication automation", () => {
   assert.throws(() => validateAgentPlan({
     ...validPlan,
-    actions: [{ ...validPlan.actions[0], action: "TAP", target: "Send", requiresApproval: true }],
+    actions: [{ ...validPlan.actions[0], action: "TAP", target: "Send", requiresApproval: true },
+      validPlan.actions[1]],
   }));
   assert.throws(() => validateAgentPlan({
     ...validPlan,
-    actions: [{ ...validPlan.actions[0], action: "TYPE", target: "Password", text: "secret" }, ...validPlan.actions.slice(1)],
+    actions: [{ ...validPlan.actions[0], action: "TYPE", target: "Password", text: "secret" },
+      validPlan.actions[1]],
   }));
 });
 
-test("requires recommendation type, explanation, and agent routing for every action", () => {
-  assert.throws(() => validateAgentPlan({
-    ...validPlan,
-    actions: [{ ...validPlan.actions[0], recommendationType: "EXECUTE" }, validPlan.actions[1]],
-  }), /recommendation/);
-  assert.throws(() => validateAgentPlan({
-    ...validPlan,
-    actions: [{ ...validPlan.actions[0], recommendation: "" }, validPlan.actions[1]],
-  }), /recommendation/);
-  assert.throws(() => validateAgentPlan({
-    ...validPlan,
-    actions: [{ ...validPlan.actions[0], skill: "" }, validPlan.actions[1]],
-  }), /attribution/);
+test("requires a signed-in admin before planning", async () => {
+  const client = new AgentClient();
+  await assert.rejects(client.plan("Open Chrome"), /admin account/);
 });
 
-test("refuses insecure Supabase endpoints", () => {
+test("uses same-origin server login and never stores a Supabase token in the client", async () => {
   const client = new AgentClient();
-  assert.throws(() => client.saveSettings("http://supabase.example", "public-key"), /HTTPS/);
-});
-
-test("requires an authenticated session before planning", async () => {
-  const client = new AgentClient();
-  await assert.rejects(client.plan("Open Chrome"), /Sign in/);
-});
-
-test("deletes an authenticated account through the trusted backend", async () => {
-  const client = new AgentClient();
-  client.settings = {
-    supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-key",
-  };
-  client.accessToken = "session-token";
   const originalFetch = globalThis.fetch;
   let request;
   globalThis.fetch = async (url, options) => {
     request = { url, options };
-    return Response.json({ deleted: true });
+    return Response.json({ email: "superintelligentcore@gmail.com" });
   };
   try {
-    await client.deleteAccount();
-    assert.equal(request.url, "https://project.supabase.co/functions/v1/agent-execute");
-    assert.equal(request.options.headers.authorization, "Bearer session-token");
-    assert.deepEqual(JSON.parse(request.options.body), { mode: "delete-account" });
-    assert.equal(client.isSignedIn, false);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("explains planning rate limits and fails closed when the backend is unavailable", async () => {
-  const client = new AgentClient();
-  client.settings = {
-    supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-key",
-  };
-  client.accessToken = "session-token";
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => Response.json(
-    { error: "plan_rate_limit_exceeded" },
-    { status: 429 },
-  );
-  try {
-    await assert.rejects(
-      client.plan("Open Chrome"),
-      /Too many planning requests/,
-    );
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("checks Supabase Auth without requiring a user session", async () => {
-  const client = new AgentClient();
-  client.settings = {
-    supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-key",
-  };
-  const originalFetch = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url, options) => {
-    requests.push({ url, options });
-    return new Response("{}", { status: 200 });
-  };
-  try {
-    assert.deepEqual(await client.checkConnections(), { supabase: true, backend: null });
-    assert.equal(requests.length, 1);
-    assert.equal(requests[0].url, "https://project.supabase.co/auth/v1/settings");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("checks authenticated backend status without invoking an LLM", async () => {
-  const client = new AgentClient();
-  client.settings = {
-    supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-key",
-  };
-  client.accessToken = "session-token";
-  const originalFetch = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url, options) => {
-    requests.push({ url, options });
-    if (requests.length === 1) return new Response("{}", { status: 200 });
-    return Response.json({
-      status: "ready",
-      databaseAvailable: true,
-      enabledEngineSlots: 2,
-      configuredEngineSlots: 1,
+    await client.signIn("superintelligentcore@gmail.com", "test-password");
+    assert.equal(request.url, "/api/login");
+    assert.equal(request.options.credentials, "same-origin");
+    assert.deepEqual(JSON.parse(request.options.body), {
+      email: "superintelligentcore@gmail.com",
+      password: "test-password",
     });
-  };
-  try {
-    const result = await client.checkConnections();
-    assert.equal(result.supabase, true);
-    assert.equal(result.backend.configuredEngineSlots, 1);
-    assert.equal(requests.length, 2);
-    assert.equal(requests[1].url, "https://project.supabase.co/functions/v1/agent-execute");
-    assert.deepEqual(JSON.parse(requests[1].options.body), { mode: "status" });
+    assert.equal(client.email, "superintelligentcore@gmail.com");
+    assert.equal("accessToken" in client, false);
   } finally {
     globalThis.fetch = originalFetch;
   }
 });
 
-test("rejects malformed backend health responses", async () => {
+test("restores a server session and uses the protected same-origin planning API", async () => {
   const client = new AgentClient();
-  client.settings = {
-    supabaseUrl: "https://project.supabase.co",
-    anonKey: "public-key",
-  };
-  client.accessToken = "session-token";
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => Response.json({});
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push({ url, options });
+    if (url === "/api/session") {
+      return Response.json({ authenticated: true, email: "support.pcmdkai@gmail.com" });
+    }
+    return Response.json({ plan: validPlan, engineId: "engine-1", taskId: "task-1" });
+  };
   try {
-    await assert.rejects(client.checkConnections(), /invalid health status/);
+    assert.equal(await client.restoreSession(), "support.pcmdkai@gmail.com");
+    const result = await client.plan("Open Chrome");
+    assert.equal(result.engineId, "engine-1");
+    assert.deepEqual(requests.map((item) => item.url), ["/api/session", "/api/agent-execute"]);
+    assert.equal(requests[1].options.credentials, "same-origin");
+    assert.deepEqual(JSON.parse(requests[1].options.body), { task: "Open Chrome" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("reports invalid credentials and planning rate limits without exposing backend details", async () => {
+  const client = new AgentClient();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => Response.json({ error: "invalid_credentials" }, { status: 401 });
+  try {
+    await assert.rejects(client.signIn("someone@example.com", "wrong"), /Admin sign-in failed/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  client.email = "superintelligentcore@gmail.com";
+  globalThis.fetch = async () => Response.json({ error: "plan_rate_limit_exceeded" }, { status: 429 });
+  try {
+    await assert.rejects(client.plan("Open Chrome"), /Too many planning requests/);
   } finally {
     globalThis.fetch = originalFetch;
   }

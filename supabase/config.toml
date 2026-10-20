@@ -1,4 +1,7 @@
 project_id = "superioa"
 
+[auth]
+enable_signup = false
+
 [functions.agent-execute]
 verify_jwt = true
